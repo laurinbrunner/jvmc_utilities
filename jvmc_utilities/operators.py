@@ -45,7 +45,6 @@ def initialisation_operators(povm):
                                              jvmcop.matrix_to_povm(dd3, M_2Body, T_inv_2Body, mode="dis")))
 
 
-
 def higher_order_M_T_inv(order, M, T_inv):
     """
     Returns POVM observables and inverse of overlap matrix of higher order.
