@@ -71,3 +71,26 @@ def higher_order_M_T_inv(order, M, T_inv):
         _T = jnp.kron(_T, T_inv)
 
     return _M, _T
+
+
+def aqi_model_operators(povm):
+    """
+    Adds operators used in the active quantum ising model to the POVM object.
+
+    This function adds the operator :math:`\sigma^+\sigma^-$` in both unitary and dissipative form.
+    They are called "spin_flip_uni" and "spin_flip_dis" respectively.
+    """
+    M_2Body, T_inv_2Body = higher_order_M_T_inv(2, povm.M, povm.T_inv)
+
+    sigmas = jvmcop.get_paulis()
+
+    # The following are spin-1/2 ladder operators for the \sigma_z, \sigma_x and \sigma_y basis respectively
+    sz_plus = (sigmas[0] + 1j * sigmas[1]) / 2
+    sz_minus = (sigmas[0] - 1j * sigmas[1]) / 2
+
+    spin_flip = jnp.kron(sz_plus, sz_minus)
+
+    if "spin_flip_uni" not in povm.operators.keys():
+        povm.add_unitary("spin_flip_uni", jvmcop.matrix_to_povm(spin_flip, M_2Body, T_inv_2Body, mode="uni"))
+    if "spin_flip_dis" not in povm.operators.keys():
+        povm.add_dissipator("spin_flip_dis", jvmcop.matrix_to_povm(spin_flip, M_2Body, T_inv_2Body, mode="dis"))

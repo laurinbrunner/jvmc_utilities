@@ -44,3 +44,20 @@ def test_initalisation_operators():
         initialisation_operators(povm)
     except ValueError as exc:
         assert False, f"'initialisation_operators' raised an exception {exc}"
+
+
+def test_aqi_model_operators():
+    povm = jVMC.operator.POVM({"dim": "1D", "L": 2})
+
+    assert("spin_flip_uni" not in povm.operators.keys())
+    assert("spin_flip_dis" not in povm.operators.keys())
+
+    aqi_model_operators(povm)
+
+    assert("spin_flip_uni" in povm.operators.keys())
+    assert("spin_flip_dis" in povm.operators.keys())
+
+    try:
+        aqi_model_operators(povm)
+    except ValueError as exc:
+        assert False, f"'initialisation_operators' raised an exception {exc}"
