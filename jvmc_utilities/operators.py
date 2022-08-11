@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import jVMC.operator as jvmcop
 import itertools
 
 
@@ -6,10 +7,42 @@ def initialisation_operators(povm):
     """
     Extends operators in POVM object by operators useful for state initialisation.
 
-    :param povm:
+    Adds dissipative operators "upup_dis", "updown_dis", "downup_dis" and "downdown_dis", which have an up-up, up-down,
+    down-up and down-down steady state respectively.
     """
+    M_2Body, T_inv_2Body = higher_order_M_T_inv(2, povm.M, povm.T_inv)
 
-    raise NotImplementedError()
+
+    uu1 = jnp.array([[0, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+    uu2 = jnp.array([[0, 0, 1, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+    uu3 = jnp.array([[0, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+
+    ud1 = jnp.array([[0, 0, 0, 0], [1, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+    ud2 = jnp.array([[0, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
+    ud3 = jnp.array([[0, 0, 0, 0], [0, 0, 0, 1], [0, 0, 0, 0], [0, 0, 0, 0]])
+
+    du1 = jnp.array([[0, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0], [0, 0, 0, 0]])
+    du2 = jnp.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 0]])
+    du3 = jnp.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 1], [0, 0, 0, 0]])
+
+    dd1 = jnp.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [1, 0, 0, 0]])
+    dd2 = jnp.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 1, 0, 0]])
+    dd3 = jnp.array([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 1, 0]])
+
+    povm.add_dissipator("upup_dis", (jvmcop.matrix_to_povm(uu1, M_2Body, T_inv_2Body, mode="dis") +
+                                     jvmcop.matrix_to_povm(uu2, M_2Body, T_inv_2Body, mode="dis") +
+                                     jvmcop.matrix_to_povm(uu3, M_2Body, T_inv_2Body, mode="dis")))
+    povm.add_dissipator("updown_dis", (jvmcop.matrix_to_povm(ud1, M_2Body, T_inv_2Body, mode="dis") +
+                                       jvmcop.matrix_to_povm(ud2, M_2Body, T_inv_2Body, mode="dis") +
+                                       jvmcop.matrix_to_povm(ud3, M_2Body, T_inv_2Body, mode="dis")))
+    povm.add_dissipator("downup_dis", (jvmcop.matrix_to_povm(du1, M_2Body, T_inv_2Body, mode="dis") +
+                                       jvmcop.matrix_to_povm(du2, M_2Body, T_inv_2Body, mode="dis") +
+                                       jvmcop.matrix_to_povm(du3, M_2Body, T_inv_2Body, mode="dis")))
+    povm.add_dissipator("downdown_dis", (jvmcop.matrix_to_povm(dd1, M_2Body, T_inv_2Body, mode="dis") +
+                                         jvmcop.matrix_to_povm(dd2, M_2Body, T_inv_2Body, mode="dis") +
+                                         jvmcop.matrix_to_povm(dd3, M_2Body, T_inv_2Body, mode="dis")))
+
+    return
 
 
 def higher_order_M_T_inv(order, M, T_inv):

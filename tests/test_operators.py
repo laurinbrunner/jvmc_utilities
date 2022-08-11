@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 import jVMC
-from jvmc_utilities import higher_order_M_T_inv
+from jvmc_utilities import *
 import jvmc_utilities
 
 
@@ -23,3 +23,19 @@ def test_higher_order_M_T_inv():
 
     assert(jnp.allclose(_M_3, M_3))
     assert(jnp.allclose(_T_3, T_3))
+
+
+def test_initalisation_operators():
+    povm = jVMC.operator.POVM({"dim":  "1D", "L": 2})
+
+    assert("upup_dis" not in povm.operators.keys())
+    assert("updown_dis" not in povm.operators.keys())
+    assert("downup_dis" not in povm.operators.keys())
+    assert("downdown_dis" not in povm.operators.keys())
+
+    initialisation_operators(povm)
+
+    assert("upup_dis" in povm.operators.keys())
+    assert("updown_dis" in povm.operators.keys())
+    assert("downup_dis" in povm.operators.keys())
+    assert("downdown_dis" in povm.operators.keys())
