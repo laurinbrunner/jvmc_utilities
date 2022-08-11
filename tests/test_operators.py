@@ -39,3 +39,8 @@ def test_initalisation_operators():
     assert("updown_dis" in povm.operators.keys())
     assert("downup_dis" in povm.operators.keys())
     assert("downdown_dis" in povm.operators.keys())
+
+    try:
+        initialisation_operators(povm)
+    except ValueError as exc:
+        assert False, f"'initialisation_operators' raised an exception {exc}"
