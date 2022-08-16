@@ -5,12 +5,12 @@ from tqdm import tqdm
 
 
 class Initializer:
-    def __init__(self, psi, tdvpEquation, stepper, lindbaldian, measure=None):
+    def __init__(self, psi, tdvpEquation, stepper, lindbaldian, measurer=None):
         self.psi = psi
         self.tdvpEquation = tdvpEquation
         self.stepper = stepper
         self.lindbladian = lindbaldian
-        self.measure = measure
+        self.measurer = measurer
 
         self.iteration_count = 0
         self.times = []
