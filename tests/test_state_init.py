@@ -2,7 +2,6 @@ import jax.numpy as jnp
 import jVMC
 import jvmc_utilities.state_init
 import pytest
-import matplotlib.pyplot as plt
 
 
 @pytest.fixture(scope='module')

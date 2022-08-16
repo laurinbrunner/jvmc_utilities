@@ -1,7 +1,6 @@
 import jax.numpy as jnp
 import jVMC
 from jvmc_utilities import *
-import jvmc_utilities
 
 
 def test_higher_order_M_T_inv():
