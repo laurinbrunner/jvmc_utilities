@@ -32,12 +32,12 @@ def setup_method():
 def test_Sz_l(setup_method):
     sampler, povm = setup_method
     measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
-    measurer.set_observables(["Sx_l", "Sy_l", "Sz_l", "N"])
+    measurer.set_observables(["Sx_i", "Sy_i", "Sz_i", "N"])
     results = measurer.measure()
 
-    assert(jnp.allclose(results["Sx_l"], 0, atol=1E-4))
-    assert(jnp.allclose(results["Sy_l"], 0, atol=1E-4))
-    assert(jnp.allclose(results["Sz_l"], jnp.array([1, -1, 1, -1]), atol=1E-3))
+    assert(jnp.allclose(results["Sx_i"], 0, atol=1E-4))
+    assert(jnp.allclose(results["Sy_i"], 0, atol=1E-4))
+    assert(jnp.allclose(results["Sz_i"], jnp.array([1, -1, 1, -1]), atol=1E-3))
     assert(jnp.allclose(results["N"], jnp.array([1, 0]), atol=1E-3))
 
 
@@ -47,7 +47,6 @@ def test_M_sq(setup_method):
     measurer.set_observables(["M_sq"])
     results = measurer.measure()
 
-    print(results["M_sq"])
     assert (jnp.allclose(results["M_sq"], 1, atol=1E-3))
 
 
@@ -57,5 +56,4 @@ def test_M_sq_2(setup_method):
     measurer.set_observables(["M_sq"])
     results = measurer.measure()
 
-    print(results["M_sq"])
     assert (jnp.allclose(results["M_sq"], 1, atol=1E-3))

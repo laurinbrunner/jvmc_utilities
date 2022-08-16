@@ -30,8 +30,8 @@ class Measurement:
                                                          mode="obs").reshape(4, 4)
 
         self.observables = []
-        self.observables_functions = {"N": self._measure_N, "Sx_l": self._measure_Sx_l, "Sy_l": self._measure_Sy_l,
-                                      "Sz_l": self._measure_Sz_l, "M_sq": self._measure_M_sq}
+        self.observables_functions = {"N": self._measure_N, "Sx_i": self._measure_Sx_i, "Sy_i": self._measure_Sy_i,
+                                      "Sz_i": self._measure_Sz_i, "M_sq": self._measure_M_sq}
 
     def set_observables(self, observables):
         """
@@ -45,13 +45,13 @@ class Measurement:
         n = mpi.global_mean(self.n_obser[self.confs], self.probs)
         return jnp.array([jnp.mean(n[::2]), jnp.mean(n[1::2])])
 
-    def _measure_Sx_l(self):
+    def _measure_Sx_i(self):
         return mpi.global_mean(self.povm.observables["X"][self.confs], self.probs)
 
-    def _measure_Sy_l(self):
+    def _measure_Sy_i(self):
         return mpi.global_mean(self.povm.observables["Y"][self.confs], self.probs)
 
-    def _measure_Sz_l(self):
+    def _measure_Sz_i(self):
         return mpi.global_mean(self.povm.observables["Z"][self.confs], self.probs)
 
     def _measure_M_sq(self):
