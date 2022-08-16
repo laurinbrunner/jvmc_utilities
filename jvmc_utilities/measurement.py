@@ -8,8 +8,10 @@ class Measurement:
     """
     This class provides functionality to measure different observables on a POVM state.
 
-    The supported measurement observables are "Sx_l", "Sy_l", "Sz_l", "N" and "M_sq", where the subscribt l indicates
-    site resolved measurements. The "N" measurement is returned as an array containing "N_up" and "N_down".
+    The supported measurement observables are "Sx_i", "Sy_i", "Sz_i", "N", "N_i" and "M_sq", where the subscribt i
+    indicates site resolved measurements (Note that the sites here are not the physical ones but only the computational
+    sites). The "N" measurement is returned as an array containing "N_up" and "N_down", whereas "N_i" gives the
+    occupation of every computational site.
 
     Only those observables given through the set_observables method will be calculated and returned.
     """
@@ -31,7 +33,8 @@ class Measurement:
 
         self.observables = []
         self.observables_functions = {"N": self._measure_N, "Sx_i": self._measure_Sx_i, "Sy_i": self._measure_Sy_i,
-                                      "Sz_i": self._measure_Sz_i, "M_sq": self._measure_M_sq}
+                                      "Sz_i": self._measure_Sz_i, "M_sq": self._measure_M_sq, "N_i": self._measure_N_i}
+        self.calculated_n = False
 
     def set_observables(self, observables):
         """
@@ -41,9 +44,19 @@ class Measurement:
         """
         self.observables = set(observables)
 
+    def _calculate_n(self):
+        self.n = mpi.global_mean(self.n_obser[self.confs], self.probs)
+        self.calculated_n = True
+
+    def _measure_N_i(self):
+        if not self.calculated_n:
+            self._calculate_n()
+        return self.n
+
     def _measure_N(self):
-        n = mpi.global_mean(self.n_obser[self.confs], self.probs)
-        return jnp.array([jnp.mean(n[::2]), jnp.mean(n[1::2])])
+        if not self.calculated_n:
+            self._calculate_n()
+        return jnp.array([jnp.mean(self.n[::2]), jnp.mean(self.n[1::2])])
 
     def _measure_Sx_i(self):
         return mpi.global_mean(self.povm.observables["X"][self.confs], self.probs)
@@ -82,6 +95,7 @@ class Measurement:
         """
         self.confs, _, self.probs = self.sampler.sample()
 
+        self.calculated_n = False
         results = {}
         for obs in self.observables:
             results[obs] = self.observables_functions[obs]()
