@@ -14,6 +14,7 @@ class Initializer:
 
         self.iteration_count = 0
         self.times = []
+        self.results = {}
 
     def initialize_no_measurement(self, steps=300):
         """
@@ -30,7 +31,33 @@ class Initializer:
             self.psi.set_parameters(dp)
 
     def initialize(self, steps=300):
-        raise NotImplementedError()
+        """
+        Calculates time evolution for a given Lindbladian to obtain its steady state after a set number of `steps`.
+
+        This method also performs measurements during every time step. The wanted observables must be specified
+        beforehand in the Measurement object `measurer`. Measurement results will be stored in the object variable
+        `results`.
+
+        :param steps: Number of time steps.
+        """
+        results = {}
+        for obs in self.measurer.observables:
+            results[obs] = []
+
+        for _ in tqdm(range(steps)):
+            dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
+                                       psi=self.psi)
+
+            _res = self.measurer.measure()
+            for obs in self.measurer.observables:
+                results[obs].append(_res[obs])
+            self.times.append(self.times[-1] + dt)
+
+            self.psi.set_parameters(dp)
+
+        self.results = {}
+        for obs in results.keys():
+            self.results[obs] = jnp.array(results[obs])
 
 
 if __name__ == '__main__':
