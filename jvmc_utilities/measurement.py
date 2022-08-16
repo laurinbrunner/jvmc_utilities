@@ -17,7 +17,7 @@ class Measurement:
     def __init__(self, sampler, povm):
         self.sampler = sampler
         self.povm = povm
-        self.L = self.povm.system_data["L"]
+        self.L = self.povm.system_data["L"] // 2
 
         self.M_2_body, self.T_inv_2_body = higher_order_M_T_inv(2, self.povm.M, self.povm.T_inv)
 
@@ -55,23 +55,26 @@ class Measurement:
         return mpi.global_mean(self.povm.observables["Z"][self.confs], self.probs)
 
     def _measure_M_sq(self):
-        n_sq_u = mpi.global_mean(self.n_sq_obser[self.confs[:, ::2]], self.probs)
-        n_sq_d = mpi.global_mean(self.n_sq_obser[self.confs[:, 1::2]], self.probs)
+        n_sq_u = mpi.global_mean(self.n_sq_obser[self.confs[:, :, ::2]], self.probs)
+        n_sq_d = mpi.global_mean(self.n_sq_obser[self.confs[:, :, 1::2]], self.probs)
 
-        n_corr_uu = mpi.global_mean(jnp.sum(jnp.array([self.n_corr_obser[self.confs[:, ::2],
-                                                                         jnp.roll(self.confs[:, ::2], j, axis=1)]
-                                                       for j in range(1, self.L)]), axis=0), self.probs)
-        n_corr_dd = mpi.global_mean(jnp.sum(jnp.array([self.n_corr_obser[self.confs[:, 1::2],
-                                                                         jnp.roll(self.confs[:, 1::2], j, axis=1)]
-                                                       for j in range(1, self.L)]), axis=0), self.probs)
-        n_corr_ud = mpi.global_mean(jnp.sum(jnp.array([self.n_corr_obser[self.confs[:, ::2],
-                                                                         jnp.roll(self.confs[:, 1::2], j, axis=1)]
+        if self.L != 1:
+            n_corr_uu = mpi.global_mean(jnp.sum(jnp.array([self.n_corr_obser[self.confs[:, :, ::2],
+                                                                             jnp.roll(self.confs[:, :, ::2], j, axis=2)]
+                                                           for j in range(1, self.L)]), axis=0), self.probs)
+            n_corr_dd = mpi.global_mean(jnp.sum(jnp.array([self.n_corr_obser[self.confs[:, :, 1::2],
+                                                                             jnp.roll(self.confs[:, :, 1::2], j, axis=2)]
+                                                           for j in range(1, self.L)]), axis=0), self.probs)
+        else:
+            n_corr_uu, n_corr_dd = 0., 0.
+        n_corr_ud = mpi.global_mean(jnp.sum(jnp.array([self.n_corr_obser[self.confs[:, :, ::2],
+                                                                         jnp.roll(self.confs[:, :, 1::2], j, axis=2)]
                                                        for j in range(self.L)]), axis=0), self.probs)
-        n_corr_du = mpi.global_mean(jnp.sum(jnp.array([self.n_corr_obser[self.confs[:, 1::2],
-                                                                         jnp.roll(self.confs[:, ::2], j, axis=1)]
+        n_corr_du = mpi.global_mean(jnp.sum(jnp.array([self.n_corr_obser[self.confs[:, :, 1::2],
+                                                                         jnp.roll(self.confs[:, :, ::2], j, axis=2)]
                                                        for j in range(self.L)]), axis=0), self.probs)
 
-        return n_sq_u + n_sq_d + n_corr_uu + n_corr_dd - n_corr_ud - n_corr_du
+        return (n_sq_u + n_sq_d + n_corr_uu + n_corr_dd - n_corr_ud - n_corr_du) / self.L
 
     def measure(self):
         """
