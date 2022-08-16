@@ -16,6 +16,13 @@ class Initializer:
         self.times = []
 
     def initialize_no_measurement(self, steps=300):
+        """
+        Calculates time evolution for a given Lindbladian to obtain its steady state after a set number of `steps`.
+
+        This method does not perform measurements and thus runs faster.
+
+        :param steps: Number of time steps.
+        """
         for _ in tqdm(range(steps)):
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
