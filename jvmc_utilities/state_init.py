@@ -41,23 +41,27 @@ class Initializer:
         :param steps: Number of time steps.
         """
         results = {}
+
+        _res = self.measurer.measure()
         for obs in self.measurer.observables:
-            results[obs] = []
+            results[obs] = [_res[obs]]
+        self.times.append(0)
 
         for _ in tqdm(range(steps)):
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
+
+            self.psi.set_parameters(dp)
 
             _res = self.measurer.measure()
             for obs in self.measurer.observables:
                 results[obs].append(_res[obs])
             self.times.append(self.times[-1] + dt)
 
-            self.psi.set_parameters(dp)
-
         self.results = {}
         for obs in results.keys():
             self.results[obs] = jnp.array(results[obs])
+        self.times = jnp.array(self.times)
 
 
 if __name__ == '__main__':
