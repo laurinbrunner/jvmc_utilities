@@ -31,6 +31,8 @@ def test_initalisation_operators():
     assert("updown_dis" not in povm.operators.keys())
     assert("downup_dis" not in povm.operators.keys())
     assert("downdown_dis" not in povm.operators.keys())
+    assert("up_dis" not in povm.operators.keys())
+    assert("down_dis" not in povm.operators.keys())
 
     initialisation_operators(povm)
 
@@ -38,6 +40,8 @@ def test_initalisation_operators():
     assert("updown_dis" in povm.operators.keys())
     assert("downup_dis" in povm.operators.keys())
     assert("downdown_dis" in povm.operators.keys())
+    assert("up_dis" in povm.operators.keys())
+    assert("down_dis" in povm.operators.keys())
 
     try:
         initialisation_operators(povm)

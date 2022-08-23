@@ -7,10 +7,19 @@ def initialisation_operators(povm):
     """
     Extends operators in POVM object by operators useful for state initialisation.
 
-    Adds dissipative operators "upup_dis", "updown_dis", "downup_dis" and "downdown_dis", which have an up-up, up-down,
-    down-up and down-down steady state respectively.
+    Adds two-site dissipative operators "upup_dis", "updown_dis", "downup_dis" and "downdown_dis", which have an up-up,
+    up-down, down-up and down-down steady state respectively. Also adds single site dissipative operators "up_dis" and
+    "down_dis" that have an up and down steady state.
     """
     M_2Body, T_inv_2Body = higher_order_M_T_inv(2, povm.M, povm.T_inv)
+
+    if "up_dis" not in povm.operators.keys():
+        up = jnp.array([[0, 1], [0, 0]])
+        povm.add_dissipator("up_dis", jvmcop.matrix_to_povm(up, povm.M, povm.T_inv, mode="dis"))
+
+    if "down_dis" not in povm.operators.keys():
+        down = jnp.array([[0, 0], [1, 0]])
+        povm.add_dissipator("down_dis", jvmcop.matrix_to_povm(down, povm.M, povm.T_inv, mode="dis"))
 
     if "upup_dis" not in povm.operators.keys():
         uu1 = jnp.array([[0, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
