@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-import jVMC
+import jVMC.operator as jvmcop
 import jVMC.mpi_wrapper as mpi
 from .operators import higher_order_M_T_inv
 
@@ -26,10 +26,10 @@ class Measurement:
         sigma_z = jnp.array([[1, 0], [0, -1]])
         n_mat = (sigma_z + jnp.eye(2)) / 2
 
-        self.n_obser = jVMC.operator.matrix_to_povm(n_mat, self.povm.M, self.povm.T_inv, mode="obs")
-        self.n_sq_obser = jVMC.operator.matrix_to_povm(n_mat @ n_mat, self.povm.M, self.povm.T_inv, mode="obs")
-        self.n_corr_obser = jVMC.operator.matrix_to_povm(jnp.kron(n_mat, n_mat), self.M_2_body, self.T_inv_2_body,
-                                                         mode="obs").reshape(4, 4)
+        self.n_obser = jvmcop.matrix_to_povm(n_mat, self.povm.M, self.povm.T_inv, mode="obs")
+        self.n_sq_obser = jvmcop.matrix_to_povm(n_mat @ n_mat, self.povm.M, self.povm.T_inv, mode="obs")
+        self.n_corr_obser = jvmcop.matrix_to_povm(jnp.kron(n_mat, n_mat), self.M_2_body, self.T_inv_2_body,
+                                                  mode="obs").reshape(4, 4)
 
         self.observables = []
         self.observables_functions = {"N": self._measure_N, "Sx_i": self._measure_Sx_i, "Sy_i": self._measure_Sy_i,
