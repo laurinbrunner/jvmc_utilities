@@ -3,7 +3,7 @@ import jVMC.sampler
 import jVMC.operator as jvmcop
 import jVMC.mpi_wrapper as mpi
 from .operators import higher_order_M_T_inv
-from typing import Union, List
+from typing import Union, List, Dict
 
 
 class Measurement:
@@ -95,7 +95,7 @@ class Measurement:
 
         return (n_sq_u + n_sq_d + n_corr_uu + n_corr_dd - n_corr_ud - n_corr_du) / self.L
 
-    def measure(self) -> dict:
+    def measure(self) -> Dict[str, jnp.ndarray]:
         """
         Returns dictionary of measurements.
         """
