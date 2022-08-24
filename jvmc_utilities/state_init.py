@@ -1,9 +1,19 @@
 import jax.numpy as jnp
 from tqdm import tqdm
+from typing import Optional, Union
+import jVMC
+from . import Measurement
 
 
 class Initializer:
-    def __init__(self, psi, tdvpEquation, stepper, lindbaldian, measurer=None):
+    def __init__(
+            self,
+            psi: jVMC.vqs.NQS,
+            tdvpEquation: jVMC.util.TDVP,
+            stepper: Union[jVMC.util.Euler, jVMC.util.AdaptiveHeun],
+            lindbaldian: jVMC.operator.POVMOperator,
+            measurer: Optional[Measurement] = None
+    ) -> None:
         self.psi = psi
         self.tdvpEquation = tdvpEquation
         self.stepper = stepper
@@ -14,7 +24,7 @@ class Initializer:
         self.times = []
         self.results = {}
 
-    def initialize_no_measurement(self, steps=300):
+    def initialize_no_measurement(self, steps: int = 300) -> None:
         """
         Calculates time evolution for a given Lindbladian to obtain its steady state after a set number of `steps`.
 
@@ -28,7 +38,7 @@ class Initializer:
 
             self.psi.set_parameters(dp)
 
-    def initialize(self, steps=300):
+    def initialize(self, steps: int = 300) -> None:
         """
         Calculates time evolution for a given Lindbladian to obtain its steady state after a set number of `steps`.
 

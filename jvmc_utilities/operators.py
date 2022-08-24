@@ -1,9 +1,10 @@
 import jax.numpy as jnp
 import jVMC.operator as jvmcop
 import itertools
+from typing import Tuple
 
 
-def initialisation_operators(povm):
+def initialisation_operators(povm: jvmcop.POVM) -> None:
     """
     Extends operators in POVM object by operators useful for state initialisation.
 
@@ -54,7 +55,7 @@ def initialisation_operators(povm):
                                              jvmcop.matrix_to_povm(dd3, M_2Body, T_inv_2Body, mode="dis")))
 
 
-def higher_order_M_T_inv(order, M, T_inv):
+def higher_order_M_T_inv(order: int, M: jnp.ndarray, T_inv: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """
     Returns POVM observables and inverse of overlap matrix of higher order.
 
@@ -81,7 +82,7 @@ def higher_order_M_T_inv(order, M, T_inv):
     return _M, _T
 
 
-def aqi_model_operators(povm):
+def aqi_model_operators(povm: jvmcop.POVM) -> None:
     """
     Adds operators used in the active quantum ising model to the POVM object.
 

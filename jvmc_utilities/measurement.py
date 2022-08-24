@@ -1,7 +1,9 @@
 import jax.numpy as jnp
+import jVMC.sampler
 import jVMC.operator as jvmcop
 import jVMC.mpi_wrapper as mpi
 from .operators import higher_order_M_T_inv
+from typing import Union, List
 
 
 class Measurement:
@@ -16,7 +18,11 @@ class Measurement:
     Only those observables given through the set_observables method will be calculated and returned.
     """
 
-    def __init__(self, sampler, povm):
+    def __init__(
+            self,
+            sampler: Union[jVMC.sampler.MCSampler, jVMC.sampler.ExactSampler],
+            povm: jvmcop.POVM
+    ) -> None:
         self.sampler = sampler
         self.povm = povm
         self.L = self.povm.system_data["L"] // 2
@@ -36,7 +42,7 @@ class Measurement:
                                       "Sz_i": self._measure_Sz_i, "M_sq": self._measure_M_sq, "N_i": self._measure_N_i}
         self.calculated_n = False
 
-    def set_observables(self, observables):
+    def set_observables(self, observables: List[str]) -> None:
         """
         Set observables to measure.
 
@@ -44,30 +50,30 @@ class Measurement:
         """
         self.observables = set(observables)
 
-    def _calculate_n(self):
+    def _calculate_n(self) -> None:
         self.n = mpi.global_mean(self.n_obser[self.confs], self.probs)
         self.calculated_n = True
 
-    def _measure_N_i(self):
+    def _measure_N_i(self) -> jnp.ndarray:
         if not self.calculated_n:
             self._calculate_n()
         return self.n
 
-    def _measure_N(self):
+    def _measure_N(self) -> jnp.ndarray:
         if not self.calculated_n:
             self._calculate_n()
         return jnp.array([jnp.mean(self.n[::2]), jnp.mean(self.n[1::2])])
 
-    def _measure_Sx_i(self):
+    def _measure_Sx_i(self) -> jnp.ndarray:
         return mpi.global_mean(self.povm.observables["X"][self.confs], self.probs)
 
-    def _measure_Sy_i(self):
+    def _measure_Sy_i(self) -> jnp.ndarray:
         return mpi.global_mean(self.povm.observables["Y"][self.confs], self.probs)
 
-    def _measure_Sz_i(self):
+    def _measure_Sz_i(self) -> jnp.ndarray:
         return mpi.global_mean(self.povm.observables["Z"][self.confs], self.probs)
 
-    def _measure_M_sq(self):
+    def _measure_M_sq(self) -> jnp.ndarray:
         n_sq_u = mpi.global_mean(self.n_sq_obser[self.confs[:, :, ::2]], self.probs)
         n_sq_d = mpi.global_mean(self.n_sq_obser[self.confs[:, :, 1::2]], self.probs)
 
@@ -89,7 +95,7 @@ class Measurement:
 
         return (n_sq_u + n_sq_d + n_corr_uu + n_corr_dd - n_corr_ud - n_corr_du) / self.L
 
-    def measure(self):
+    def measure(self) -> dict:
         """
         Returns dictionary of measurements.
         """
