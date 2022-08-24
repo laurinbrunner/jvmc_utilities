@@ -63,7 +63,9 @@ def higher_order_M_T_inv(order: int, M: jnp.ndarray, T_inv: jnp.ndarray) -> Tupl
     :param M:
     :return:
     """
-    if order <= 1:
+    if type(order) != int or order < 1:
+        raise ValueError("order must be an integer greater than 0.")
+    if order == 1:
         return M, T_inv
 
     _M = []

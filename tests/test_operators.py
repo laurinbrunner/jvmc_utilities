@@ -1,5 +1,7 @@
 import jax.numpy as jnp
 import jVMC
+import pytest
+
 from jvmc_utilities import *
 
 
@@ -22,6 +24,17 @@ def test_higher_order_M_T_inv():
 
     assert(jnp.allclose(_M_3, M_3))
     assert(jnp.allclose(_T_3, T_3))
+
+    M_1, T_1 = higher_order_M_T_inv(1, povm.M, povm.T_inv)
+
+    assert(jnp.allclose(povm.M, M_1))
+    assert(jnp.allclose(povm.T_inv, T_1))
+
+    with pytest.raises(ValueError):
+        _, _ = higher_order_M_T_inv(0, povm.M, povm.T_inv)
+
+    with pytest.raises(ValueError):
+        _, _ = higher_order_M_T_inv("wrong input", povm.M, povm.T_inv)
 
 
 def test_initalisation_operators():
