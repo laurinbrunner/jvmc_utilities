@@ -15,17 +15,10 @@ class POVMCNN(nn.Module):
     L: int = 4
     kernel_size: int = (2,)
     kernel_dilation: int = 1
-    features: int = 8
+    features: int = (8,)
     inputDim: int = 4
     actFun: callable = nn.elu
-
-    # As of yet unused variables
-    hiddenSize: int = 10
-    depth: int = 1
-    initScale: float = 1.0
-    logProbFactor: float = 0.5
-    realValuedOutput: bool = False
-    realValuedParams: bool = True
+    depth: int = 2
 
     def __call__(self, x):
         x = jax.nn.one_hot(x, self.inputDim)
@@ -35,27 +28,24 @@ class POVMCNN(nn.Module):
 
     @nn.compact
     def cnn_cell(self, x):
-        x = x.reshape(1, -1, self.inputDim)
+        x = x[:-1].reshape(1, -1, self.inputDim)
 
-        x = jnp.pad(x, ((0, 0), (2, 0), (0, 0)))
+        for i in range(self.depth - 1):
+            pad = 2 if i == 0 else 2**i
+            x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
 
-        x = nn.Conv(features=4, kernel_size=self.kernel_size, kernel_dilation=self.kernel_dilation,
-                    padding='VALID')(x[:, :-1, :])  # Last one omitted since it doesn't hold physical meaning ?
+            x = nn.Conv(features=self.features[i], kernel_size=self.kernel_size,
+                        kernel_dilation=2**i*self.kernel_dilation,
+                        padding='VALID')(x)  # Last one omitted since it doesn't hold physical meaning ?
 
-        # a, g = jnp.split(x, 2, axis=-1)
-        # x = nn.sigmoid(g) * jnp.tanh(a)
+            # a, g = jnp.split(x, 2, axis=-1)
+            # x = nn.sigmoid(g) * jnp.tanh(a)
 
-        x = self.actFun(x)
+            x = self.actFun(x)
 
-        x = jnp.pad(x, ((0, 0), (3, 0), (0, 0)))
+        x = jnp.pad(x, ((0, 0), (1, 0), (0, 0)))
 
-        x = nn.Conv(features=4, kernel_size=self.kernel_size, kernel_dilation=2*self.kernel_dilation,
-                    padding='VALID')(x[:, :-1, :])
-
-        x = self.actFun(x)
-
-        # a, g = jnp.split(x, 2, axis=-1)
-        # x = nn.sigmoid(g) * jnp.tanh(a)
+        x = nn.Conv(features=4, kernel_size=self.kernel_size, kernel_dilation=1, padding='VALID')(x)
 
         return x[0]
 
@@ -77,7 +67,7 @@ if __name__ == '__main__':
     L = 4
     prngkey = jax.random.PRNGKey(0)
 
-    cnn = POVMCNN(L=L)
+    cnn = POVMCNN(L=L) #, depth=3, features=(8, 8))
 
     psi = jVMC.vqs.NQS(cnn, seed=1234)
 
