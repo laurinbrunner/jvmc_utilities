@@ -22,7 +22,7 @@ class Initializer:
         self.measurer = measurer
 
         self.iteration_count = 0
-        self.times = []
+        self.times = jnp.array([0.])
         self.results = {}
 
     def initialize_no_measurement(self, steps: int = 300) -> None:
@@ -79,10 +79,7 @@ class Initializer:
         _res = self.measurer.measure()
         for obs in self.measurer.observables:
             results[obs] = [_res[obs]]
-        if len(self.times) == 0:
-            times.append(0)
-        else:
-            times.append(self.times[-1])
+        times.append(self.times[-1])
 
         t = times[-1]
 
