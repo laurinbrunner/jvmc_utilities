@@ -1,3 +1,4 @@
+import jax
 import jax.numpy as jnp
 import jVMC
 import jvmc_utilities.state_init
@@ -22,7 +23,7 @@ def setup_updown():
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
     init = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind)
 
-    init.initialize_no_measurement()
+    init.initialize(measurestep=-1)
 
     return psi, sampler, povm, tdvpEquation, stepper
 
@@ -49,6 +50,29 @@ def test_with_measurement(setup_updown):
     E = jnp.array([jnp.eye(4), jnp.eye(4)])
     assert jnp.allclose(init.results["Sz_i"], jnp.einsum("aij, jit -> ta", Z, rho_t), atol=1E-2)
     assert jnp.allclose(init.results["N"], jnp.einsum("aij, jit -> ta", (Z + E) / 2, rho_t), atol=1E-2)
+
+
+def test_measurestep(setup_updown):
+    psi, sampler, povm, tdvpEquation, stepper = setup_updown
+
+    steps = 20
+
+    lind = jVMC.operator.POVMOperator(povm)
+    lind.add({"name": "downdown_dis", "strength": 1.0, "sites": (0, 1)})
+    measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
+    measurer.set_observables(["Sz_i"])
+
+    params = psi.get_parameters()
+    init1 = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
+    init2 = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
+
+    init1.initialize(steps=steps, measurestep=0)
+    psi.set_parameters(params)
+    init2.initialize(steps=steps, measurestep=1)
+
+    assert init1.results["Sz_i"].shape[0] == 2 * init2.results["Sz_i"].shape[0] - 1
+    assert jnp.allclose(init1.times[::2], init2.times)
+    assert jnp.allclose(init1.results["Sz_i"][::2, 0], init2.results["Sz_i"][:, 0])
 
 
 def test_copy_state(setup_updown):
