@@ -70,3 +70,7 @@ class Initializer:
         for obs in results.keys():
             self.results[obs] = jnp.array(results[obs])
         self.times = jnp.array(self.times)
+
+
+def copy_state(source: jVMC.vqs.NQS, target: jVMC.vqs.NQS) -> None:
+    raise NotImplementedError()
