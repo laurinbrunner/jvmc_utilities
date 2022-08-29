@@ -73,4 +73,4 @@ class Initializer:
 
 
 def copy_state(source: jVMC.vqs.NQS, target: jVMC.vqs.NQS) -> None:
-    raise NotImplementedError()
+    target.set_parameters(source.get_parameters())
