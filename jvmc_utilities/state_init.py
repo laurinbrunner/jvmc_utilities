@@ -13,13 +13,20 @@ class Initializer:
             tdvpEquation: jVMC.util.TDVP,
             stepper: Union[jVMC.util.Euler, jVMC.util.AdaptiveHeun],
             lindbaldian: jVMC.operator.POVMOperator,
-            measurer: Optional[Measurement] = None
+            measurer: Optional[Measurement] = None,
+            sampler: Optional[Union[jVMC.sampler.MCSampler, jVMC.sampler.ExactSampler]] = None,
+            povm: Optional[jVMC.operator.POVM] = None
     ) -> None:
         self.psi = psi
         self.tdvpEquation = tdvpEquation
         self.stepper = stepper
         self.lindbladian = lindbaldian
         self.measurer = measurer
+        if sampler is not None and povm is not None:
+            self.conv_measurer = Measurement(sampler, povm)
+        else:
+            self.conv_measurer = None
+        self.max_conv_steps = 10
 
         self.iteration_count = 0
         self.times = jnp.array([0.])
@@ -37,7 +44,14 @@ class Initializer:
                       "adviced.", DeprecationWarning)
         self.initialize(measurestep=-1, steps=steps)
 
-    def initialize(self, measurestep: int = 0, steps: int = 300) -> None:
+    def initialize(
+            self,
+            measurestep: int = 0,
+            steps: int = 300,
+            convergence: bool = False,
+            atol: float = 1E-5,
+            conv_obs: str = "Sz_i"
+    ) -> None:
         """
         Calculates time evolution for a given Lindbladian to obtain its steady state after a set number of `steps`.
 
@@ -47,18 +61,59 @@ class Initializer:
 
         :param measurestep: Number of steps between measurements. If negative no measurements are performed at all.
         :param steps: Number of time steps.
+        :param convergence: Convergence mode time evolves state until specified observable no longer changes. In
+        convergence mode the steps parameter will be ignored. Be careful, this does not mean that the state converged
+        to the correct steady state, only that it converged to some state.
+        :param atol: Absolute tolerance for convergence mode.
+        :param conv_obs: Observable that will be checked for convergence. Default is "Sz_i".
 
         :raises: ValueError
         """
-        if measurestep >= 0:
-            if self.measurer is None:
-                raise ValueError(f"Trying to measure every {measurestep} steps while no measurer has been defined for"
-                                 f"this initializer.")
-            self.__with_measurement(measurestep=measurestep, steps=steps)
+        if convergence:
+            if self.conv_measurer is None:
+                raise ValueError(f"No POVM or no sampler defined!")
+            self.conv_measurer.set_observables([conv_obs])
+            if measurestep >= 0:
+                if self.measurer is None:
+                    raise ValueError(f"Trying to measure every {measurestep} steps while no measurer has been defined "
+                                     f"for this initializer.")
+                self.__with_measurement_with_conv(measurestep=measurestep, atol=atol, conv_obs=conv_obs)
+            else:
+                self.__no_measurement_with_conv(atol=atol, conv_obs=conv_obs)
         else:
-            self.__no_measurements(steps=steps)
+            if measurestep >= 0:
+                if self.measurer is None:
+                    raise ValueError(f"Trying to measure every {measurestep} steps while no measurer has been defined "
+                                     f"for this initializer.")
+                self.__with_measurement_no_conv(measurestep=measurestep, steps=steps)
+            else:
+                self.__no_measurements_no_conv(steps=steps)
 
-    def __no_measurements(self, steps: int) -> None:
+    def __no_measurement_with_conv(self, atol: float, conv_obs: str) -> None:
+        diff = 1
+        prev_res = self.conv_measurer.measure()["Sz_i"]
+
+        conv_steps = 0
+        while True:
+            dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
+                                       psi=self.psi)
+
+            self.psi.set_parameters(dp)
+
+            if conv_steps == self.max_conv_steps:
+                curr_res = self.conv_measurer.measure()["Sz_i"]
+                diff = jnp.sqrt(jnp.mean(jnp.abs(curr_res - prev_res)**2))
+                if diff < atol:
+                    break
+                prev_res = curr_res
+                conv_steps = 0
+            else:
+                conv_steps += 1
+
+    def __with_measurement_with_conv(self, measurestep: int, atol: float, conv_obs: str) -> None:
+        raise NotImplementedError()
+
+    def __no_measurements_no_conv(self, steps: int) -> None:
         """
         Helper function for initialisation without any measurements. Not intended to be called directly.
         """
@@ -68,7 +123,7 @@ class Initializer:
 
             self.psi.set_parameters(dp)
 
-    def __with_measurement(self, measurestep: int, steps: int) -> None:
+    def __with_measurement_no_conv(self, measurestep: int, steps: int) -> None:
         """
         Helper function for initialisation with measurements. Not intended to be called directly.
         """
