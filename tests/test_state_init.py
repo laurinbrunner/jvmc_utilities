@@ -23,7 +23,7 @@ def setup_updown():
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
     init = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind)
 
-    init.initialize(measurestep=-1)
+    init.initialize(measure_step=-1)
 
     return psi, sampler, povm, tdvpEquation, stepper
 
@@ -66,9 +66,9 @@ def test_measurestep(setup_updown):
     init1 = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
     init2 = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
 
-    init1.initialize(steps=steps, measurestep=0)
+    init1.initialize(steps=steps, measure_step=0)
     psi.set_parameters(params)
-    init2.initialize(steps=steps, measurestep=1)
+    init2.initialize(steps=steps, measure_step=1)
 
     assert init1.results["Sz_i"].shape[0] == 2 * init2.results["Sz_i"].shape[0] - 1
     assert jnp.allclose(init1.times[::2], init2.times)
@@ -92,11 +92,11 @@ def test_no_measurement_with_convergence():
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
     init = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind, povm=povm, sampler=sampler)
 
-    init.initialize(convergence=True, atol=1E-5, measurestep=-1)
+    init.initialize(convergence=True, atol=1E-5, measure_step=-1)
 
     res1 = init.conv_measurer.measure()["Sz_i"]
 
-    init.initialize(convergence=True, atol=1E-5, measurestep=-1)
+    init.initialize(convergence=True, atol=1E-5, measure_step=-1)
 
     res2 = init.conv_measurer.measure()["Sz_i"]
 
