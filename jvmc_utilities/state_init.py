@@ -42,11 +42,11 @@ class Initializer:
         """
         warnings.warn("initialize_no_measurement method is deprecated. Using initialize(measurestep=-1) instead is "
                       "adviced.", DeprecationWarning)
-        self.initialize(measurestep=-1, steps=steps)
+        self.initialize(measure_step=-1, steps=steps)
 
     def initialize(
             self,
-            measurestep: int = 0,
+            measure_step: int = 0,
             steps: int = 300,
             convergence: bool = False,
             atol: float = 1E-5,
@@ -59,7 +59,7 @@ class Initializer:
         beforehand in the Measurement object `measurer`. Measurement results will be stored in the object variable
         `results`.
 
-        :param measurestep: Number of steps between measurements. If negative no measurements are performed at all.
+        :param measure_step: Number of steps between measurements. If negative no measurements are performed at all.
         :param steps: Number of time steps.
         :param convergence: Convergence mode time evolves state until specified observable no longer changes. In
         convergence mode the steps parameter will be ignored. Be careful, this does not mean that the state converged
@@ -73,19 +73,19 @@ class Initializer:
             if self.conv_measurer is None:
                 raise ValueError(f"No POVM or no sampler defined!")
             self.conv_measurer.set_observables([conv_obs])
-            if measurestep >= 0:
+            if measure_step >= 0:
                 if self.measurer is None:
-                    raise ValueError(f"Trying to measure every {measurestep} steps while no measurer has been defined "
+                    raise ValueError(f"Trying to measure every {measure_step} steps while no measurer has been defined "
                                      f"for this initializer.")
-                self.__with_measurement_with_conv(measurestep=measurestep, atol=atol, conv_obs=conv_obs)
+                self.__with_measurement_with_conv(measure_step=measure_step, atol=atol, conv_obs=conv_obs)
             else:
                 self.__no_measurement_with_conv(atol=atol, conv_obs=conv_obs)
         else:
-            if measurestep >= 0:
+            if measure_step >= 0:
                 if self.measurer is None:
-                    raise ValueError(f"Trying to measure every {measurestep} steps while no measurer has been defined "
+                    raise ValueError(f"Trying to measure every {measure_step} steps while no measurer has been defined "
                                      f"for this initializer.")
-                self.__with_measurement_no_conv(measurestep=measurestep, steps=steps)
+                self.__with_measurement_no_conv(measure_step=measure_step, steps=steps)
             else:
                 self.__no_measurements_no_conv(steps=steps)
 
@@ -109,7 +109,7 @@ class Initializer:
             else:
                 conv_steps += 1
 
-    def __with_measurement_with_conv(self, measurestep: int, atol: float, conv_obs: str) -> None:
+    def __with_measurement_with_conv(self, measure_step: int, atol: float, conv_obs: str) -> None:
         raise NotImplementedError()
 
     def __no_measurements_no_conv(self, steps: int) -> None:
@@ -122,7 +122,7 @@ class Initializer:
 
             self.psi.set_parameters(dp)
 
-    def __with_measurement_no_conv(self, measurestep: int, steps: int) -> None:
+    def __with_measurement_no_conv(self, measure_step: int, steps: int) -> None:
         """
         Helper function for initialisation with measurements. Not intended to be called directly.
         """
@@ -137,7 +137,7 @@ class Initializer:
 
         t = times[-1]
 
-        measurecounter = 0
+        measure_counter = 0
         for _ in tqdm(range(steps)):
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
@@ -145,14 +145,14 @@ class Initializer:
             t += dt
             self.psi.set_parameters(dp)
 
-            if measurecounter == measurestep:
+            if measure_counter == measure_step:
                 _res = self.measurer.measure()
                 for obs in self.measurer.observables:
                     results[obs].append(_res[obs])
                 times.append(t)
-                measurecounter = 0
+                measure_counter = 0
             else:
-                measurecounter += 1
+                measure_counter += 1
 
         if len(self.results.keys()) == 0:
             self.results = {}
