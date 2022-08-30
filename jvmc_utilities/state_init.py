@@ -90,8 +90,7 @@ class Initializer:
                 self.__no_measurements_no_conv(steps=steps)
 
     def __no_measurement_with_conv(self, atol: float, conv_obs: str) -> None:
-        diff = 1
-        prev_res = self.conv_measurer.measure()["Sz_i"]
+        prev_res = self.conv_measurer.measure()[conv_obs]
 
         conv_steps = 0
         while True:
@@ -101,7 +100,7 @@ class Initializer:
             self.psi.set_parameters(dp)
 
             if conv_steps == self.max_conv_steps:
-                curr_res = self.conv_measurer.measure()["Sz_i"]
+                curr_res = self.conv_measurer.measure()[conv_obs]
                 diff = jnp.sqrt(jnp.mean(jnp.abs(curr_res - prev_res)**2))
                 if diff < atol:
                     break
