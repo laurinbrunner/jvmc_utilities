@@ -110,7 +110,46 @@ class Initializer:
                 conv_steps += 1
 
     def __with_measurement_with_conv(self, measure_step: int, atol: float, conv_obs: str) -> None:
-        raise NotImplementedError()
+        prev_res = self.conv_measurer.measure()[conv_obs]
+
+        results = {obs: [] for obs in self.measurer.observables}
+        times = []
+
+        # Do measurement on the first state
+        self.__do_measurement(results, times, self.times[-1])
+
+        t = times[-1]
+
+        measure_counter = 0
+        conv_steps = 0
+        while True:
+            dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
+                                       psi=self.psi)
+
+            t += dt
+            self.psi.set_parameters(dp)
+
+            if measure_counter == measure_step:
+                self.__do_measurement(results, times, t)
+                measure_counter = 0
+            else:
+                measure_counter += 1
+
+            if conv_steps == self.max_conv_steps:
+                curr_res = self.conv_measurer.measure()[conv_obs]
+                diff = self.__convergence_function(prev_res, curr_res)
+                if diff < atol:
+                    break
+                prev_res = curr_res
+                conv_steps = 0
+            else:
+                conv_steps += 1
+
+        # Make sure that measurement is done on the converged state
+        if measure_counter != 0:
+            self.__do_measurement(results, times, t)
+
+        self.__convert_to_arrays(results, times)
 
     def __no_measurements_no_conv(self, steps: int) -> None:
         """
