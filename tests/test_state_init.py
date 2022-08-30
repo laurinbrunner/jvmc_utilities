@@ -24,13 +24,17 @@ def setup_updown():
     init = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind)
 
     init.initialize(measure_step=-1)
+    params = psi.get_parameters()
 
-    return psi, sampler, povm, tdvpEquation, stepper
+    return psi, params, sampler, povm, tdvpEquation, stepper
 
 
 @pytest.mark.slow
 def test_with_measurement(setup_updown):
-    psi, sampler, povm, tdvpEquation, stepper = setup_updown
+    psi, params, sampler, povm, tdvpEquation, stepper = setup_updown
+    # Make sure psi is at start state
+    psi.set_parameters(params)
+
     steps = 200
 
     lind = jVMC.operator.POVMOperator(povm)
@@ -53,7 +57,9 @@ def test_with_measurement(setup_updown):
 
 
 def test_measurestep(setup_updown):
-    psi, sampler, povm, tdvpEquation, stepper = setup_updown
+    psi, params, sampler, povm, tdvpEquation, stepper = setup_updown
+    # Make sure psi is at start state
+    psi.set_parameters(params)
 
     steps = 20
 
@@ -104,7 +110,9 @@ def test_no_measurement_with_convergence():
 
 
 def test_with_measurement_with_convergence(setup_updown):
-    psi, sampler, povm, tdvpEquation, stepper = setup_updown
+    psi, params, sampler, povm, tdvpEquation, stepper = setup_updown
+    # Make sure psi is at start state
+    psi.set_parameters(params)
 
     lind = jVMC.operator.POVMOperator(povm)
     lind.add({"name": "downdown_dis", "strength": 1.0, "sites": (0, 1)})
@@ -128,7 +136,9 @@ def test_with_measurement_with_convergence(setup_updown):
 
 
 def test_copy_state(setup_updown):
-    psi_source, sampler_source, povm, tdvpEquation, stepper = setup_updown
+    psi_source, params, sampler_source, povm, tdvpEquation, stepper = setup_updown
+    # Make sure psi is at start state
+    psi_source.set_parameters(params)
 
     L = sampler_source.sampleShape[0]
     psi_target = jVMC.util.util.init_net({"batch_size": 5000, "net1":
