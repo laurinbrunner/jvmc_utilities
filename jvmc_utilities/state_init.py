@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from tqdm import tqdm
-from typing import Optional, Union
+from typing import Optional, Union, List, Dict
 import jVMC
 from . import Measurement
 import warnings
@@ -101,7 +101,7 @@ class Initializer:
 
             if conv_steps == self.max_conv_steps:
                 curr_res = self.conv_measurer.measure()[conv_obs]
-                diff = jnp.sqrt(jnp.mean(jnp.abs(curr_res - prev_res)**2))
+                diff = self.__convergence_function(prev_res, curr_res)
                 if diff < atol:
                     break
                 prev_res = curr_res
@@ -126,14 +126,11 @@ class Initializer:
         """
         Helper function for initialisation with measurements. Not intended to be called directly.
         """
-        results = {}
+        results = {obs: [] for obs in self.measurer.observables}
         times = []
 
         # Do measurement on the first state
-        _res = self.measurer.measure()
-        for obs in self.measurer.observables:
-            results[obs] = [_res[obs]]
-        times.append(self.times[-1])
+        self.__do_measurement(results, times, self.times[-1])
 
         t = times[-1]
 
@@ -146,14 +143,27 @@ class Initializer:
             self.psi.set_parameters(dp)
 
             if measure_counter == measure_step:
-                _res = self.measurer.measure()
-                for obs in self.measurer.observables:
-                    results[obs].append(_res[obs])
-                times.append(t)
+                self.__do_measurement(results, times, t)
                 measure_counter = 0
             else:
                 measure_counter += 1
 
+        self.__convert_to_arrays(results, times)
+
+    @staticmethod
+    def __convergence_function(a: jnp.ndarray, b: jnp.ndarray) -> float:
+        return jnp.sqrt(jnp.mean(jnp.abs(a - b)**2))
+
+    def __do_measurement(self, results: Dict[str, List[jnp.ndarray]], times: List[float], t: float) -> None:
+        _res = self.measurer.measure()
+        for obs in self.measurer.observables:
+            results[obs].append(_res[obs])
+        times.append(t)
+
+    def __convert_to_arrays(self, results: Dict[str, List[jnp.ndarray]], times: List[float]) -> None:
+        """
+        Converts results dictionary and times list to jnp.ndarray and sets them to the respective instance variables.
+        """
         if len(self.results.keys()) == 0:
             self.results = {}
             for obs in results.keys():
