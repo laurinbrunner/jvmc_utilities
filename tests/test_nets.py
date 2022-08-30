@@ -41,7 +41,7 @@ def test_POVMCNN():
     init_cnn = jvmc_utilities.state_init.Initializer(psi_cnn, tdvpEquation_cnn, stepper, lind, measurer=measurer_cnn)
     init_rnn = jvmc_utilities.state_init.Initializer(psi_rnn, tdvpEquation_rnn, stepper, lind, measurer=measurer_rnn)
 
-    init_cnn.initialize_no_measurement(100)
-    init_rnn.initialize_no_measurement(100)
+    init_cnn.initialize(measure_step=-1, steps=100)
+    init_rnn.initialize(measure_step=-1, steps=100)
 
     assert jnp.allclose(measurer_cnn.measure()["Sz_i"], measurer_rnn.measure()["Sz_i"], atol=5E-3)
