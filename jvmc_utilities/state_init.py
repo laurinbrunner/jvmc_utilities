@@ -12,7 +12,7 @@ class Initializer:
             psi: jVMC.vqs.NQS,
             tdvpEquation: jVMC.util.TDVP,
             stepper: Union[jVMC.util.Euler, jVMC.util.AdaptiveHeun],
-            lindbaldian: jVMC.operator.POVMOperator,
+            lindbladian: jVMC.operator.POVMOperator,
             measurer: Optional[Measurement] = None,
             sampler: Optional[Union[jVMC.sampler.MCSampler, jVMC.sampler.ExactSampler]] = None,
             povm: Optional[jVMC.operator.POVM] = None
@@ -20,7 +20,7 @@ class Initializer:
         self.psi = psi
         self.tdvpEquation = tdvpEquation
         self.stepper = stepper
-        self.lindbladian = lindbaldian
+        self.lindbladian = lindbladian
         self.measurer = measurer
         if sampler is not None and povm is not None:
             self.conv_measurer = Measurement(sampler, povm)
