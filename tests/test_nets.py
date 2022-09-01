@@ -38,8 +38,8 @@ def test_POVMCNN():
     measurer_cnn.set_observables(["Sz_i"])
     measurer_rnn = jvmc_utilities.measurement.Measurement(sampler_rnn, povm)
     measurer_rnn.set_observables(["Sz_i"])
-    init_cnn = jvmc_utilities.state_init.Initializer(psi_cnn, tdvpEquation_cnn, stepper, lind, measurer=measurer_cnn)
-    init_rnn = jvmc_utilities.state_init.Initializer(psi_rnn, tdvpEquation_rnn, stepper, lind, measurer=measurer_rnn)
+    init_cnn = jvmc_utilities.time_evolve.Initializer(psi_cnn, tdvpEquation_cnn, stepper, lind, measurer=measurer_cnn)
+    init_rnn = jvmc_utilities.time_evolve.Initializer(psi_rnn, tdvpEquation_rnn, stepper, lind, measurer=measurer_rnn)
 
     init_cnn.initialize(measure_step=-1, steps=100)
     init_rnn.initialize(measure_step=-1, steps=100)
