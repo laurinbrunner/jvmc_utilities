@@ -101,7 +101,7 @@ class Initializer:
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
 
-            if jnp.any(dp == jnp.nan):
+            if jnp.any(jnp.isnan(dp)):
                 warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
                 break
 
@@ -134,7 +134,7 @@ class Initializer:
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
 
-            if jnp.any(dp == jnp.nan):
+            if jnp.any(jnp.isnan(dp)):
                 warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
                 break
 
@@ -171,7 +171,7 @@ class Initializer:
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
 
-            if jnp.any(dp == jnp.nan):
+            if jnp.any(jnp.isnan(dp)):
                 warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
                 break
 
@@ -194,7 +194,7 @@ class Initializer:
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
 
-            if jnp.any(dp == jnp.nan):
+            if jnp.any(jnp.isnan(dp)):
                 warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
                 break
 
