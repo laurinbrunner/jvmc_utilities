@@ -7,6 +7,9 @@ import warnings
 
 
 class ConvergenceWarning(Warning):
+    """
+    Warning for encountering nan-values in the network parameters at time evolution.
+    """
     pass
 
 
