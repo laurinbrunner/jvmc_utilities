@@ -6,6 +6,10 @@ from . import Measurement
 import warnings
 
 
+class ConvergenceWarning(Warning):
+    pass
+
+
 class Initializer:
     def __init__(
             self,
@@ -97,6 +101,10 @@ class Initializer:
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
 
+            if jnp.any(dp == jnp.nan):
+                warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
+                break
+
             self.psi.set_parameters(dp)
 
             if conv_steps == self.max_conv_steps:
@@ -125,6 +133,10 @@ class Initializer:
         while True:
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
+
+            if jnp.any(dp == jnp.nan):
+                warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
+                break
 
             t += dt
             self.psi.set_parameters(dp)
@@ -159,6 +171,10 @@ class Initializer:
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
 
+            if jnp.any(dp == jnp.nan):
+                warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
+                break
+
             self.psi.set_parameters(dp)
 
     def __with_measurement_no_conv(self, measure_step: int, steps: int) -> None:
@@ -177,6 +193,10 @@ class Initializer:
         for _ in tqdm(range(steps)):
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
+
+            if jnp.any(dp == jnp.nan):
+                warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
+                break
 
             t += dt
             self.psi.set_parameters(dp)
