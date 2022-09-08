@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
     measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
     measurer.set_observables(["Sz_i"])
-    init = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
 
     init.initialize(100)
 

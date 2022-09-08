@@ -2,3 +2,4 @@ jax>=0.2.11,<=0.3.15
 jVMC>=1.1.1
 pytest>=7.1.0
 tqdm>=4.64.0
+setuptools-scm[toml]>=4

@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import jVMC
 import pytest
 
-import jvmc_utilities.state_init
+import jvmc_utilities.time_evolve
 
 
 @pytest.fixture(scope='module')
@@ -22,7 +22,7 @@ def setup_method():
     lind = jVMC.operator.POVMOperator(povm)
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (2, 3)})
-    init = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind)
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind)
 
     init.initialize_no_measurement()
 

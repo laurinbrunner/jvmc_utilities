@@ -4,6 +4,15 @@ from typing import Optional, Union, List, Dict
 import jVMC
 from . import Measurement
 import warnings
+import time
+from clu import metric_writers
+
+
+class ConvergenceWarning(Warning):
+    """
+    Warning for encountering nan-values in the network parameters at time evolution.
+    """
+    pass
 
 
 class Initializer:
@@ -97,6 +106,10 @@ class Initializer:
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
 
+            if jnp.any(jnp.isnan(dp)):
+                warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
+                break
+
             self.psi.set_parameters(dp)
 
             if conv_steps == self.max_conv_steps:
@@ -125,6 +138,10 @@ class Initializer:
         while True:
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
+
+            if jnp.any(jnp.isnan(dp)):
+                warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
+                break
 
             t += dt
             self.psi.set_parameters(dp)
@@ -159,6 +176,10 @@ class Initializer:
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
 
+            if jnp.any(jnp.isnan(dp)):
+                warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
+                break
+
             self.psi.set_parameters(dp)
 
     def __with_measurement_no_conv(self, measure_step: int, steps: int) -> None:
@@ -177,6 +198,10 @@ class Initializer:
         for _ in tqdm(range(steps)):
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
+
+            if jnp.any(jnp.isnan(dp)):
+                warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
+                break
 
             t += dt
             self.psi.set_parameters(dp)
@@ -215,6 +240,141 @@ class Initializer:
                 else:
                     self.results[obs] = jnp.array(results[obs])
             self.times = jnp.concatenate([self.times, jnp.array(times)])
+
+
+class TimeEvolver:
+    """
+    Class for evolving a state in time according to a specified Lindblad operator.
+    """
+
+    def __init__(
+            self,
+            psi: jVMC.vqs.NQS,
+            tdvpEquation: jVMC.util.TDVP,
+            stepper: Union[jVMC.util.Euler, jVMC.util.AdaptiveHeun],
+            measurer: Measurement,
+            writer: metric_writers.summary_writer.SummaryWriter = None
+    ) -> None:
+        self.psi = psi
+        self.tdvpEquation = tdvpEquation
+        self.stepper = stepper
+        if type(stepper) == jVMC.util.Euler:
+            self.adaptive_stepper = False
+        else:
+            self.adaptive_stepper = True
+
+        self.measurer = measurer
+        self.writer = writer
+        self.write_index = 0
+
+        self.real_times = []  # Every list in this list is for potential reruns
+        self.times = jnp.array([0.])
+        self.results = {}
+
+    def run(self, lindbladian: jVMC.operator.POVMOperator, max_time: float, measure_step: int = 0) -> None:
+
+        results = {obs: [] for obs in self.measurer.observables}
+        times = []
+        self.real_times.append([])
+
+        self.__do_measurement(results, times, self.times[-1])
+
+        t = times[0]
+
+        pbar = tqdm(total=100, desc="Progress", unit="%")
+        bar_index = 1
+        measure_counter = 0
+        try:
+            while t - times[0] < max_time:
+
+                if self.adaptive_stepper:
+                    dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
+                                               hamiltonian=lindbladian, psi=self.psi, normFunction=self.__norm_fun)
+                else:
+                    dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
+                                               hamiltonian=lindbladian, psi=self.psi)
+
+                if jnp.any(jnp.isnan(dp)):
+                    warnings.warn("TimeEvolver ran into nan-valued parameters. Aborted time evolution.",
+                                  ConvergenceWarning)
+                    break
+
+                t += dt
+                self.psi.set_parameters(dp)
+
+                if measure_counter == measure_step:
+                    self.__do_measurement(results, times, t)
+                    measure_counter = 0
+                else:
+                    measure_counter += 1
+
+                # update tqdm bar
+                if t - times[0] > max_time / 100 * bar_index:
+                    old_bar_index = bar_index
+                    bar_index = int(jnp.floor(t / max_time * 100) + 1)
+                    pbar.update(bar_index - old_bar_index)
+                    pbar.set_postfix({"t": t})
+
+        finally:
+            pbar.close()
+
+        # Make sure that measurement is done at the last step
+        if measure_counter != 0:
+            self.__do_measurement(results, times, t)
+
+        self.__convert_to_arrays(results, times)
+
+    def __norm_fun(self, v: jnp.ndarray) -> float:
+        return jnp.real(jnp.conj(jnp.transpose(v)).dot(self.tdvpEquation.S_dot(v)))
+
+    def __write(self, results: Dict[str, List[jnp.ndarray]], t: float, dt: float) -> None:
+        writedict = {}
+        if "N" in results.keys():
+            writedict["N"] = results["N"][0] + results["N"][1]
+            writedict["M"] = results["N"][0] - results["N"][1]
+        if "Sx_i" in results.keys():
+            writedict["X"] = jnp.sum(results["Sx_i"])
+            for i in range(results["Sx_i"].shape[0]):
+                writedict[f"Sx_i/{i}"] = results["Sx_i"][i]
+        if "Sy_i" in results.keys():
+            writedict["Y"] = jnp.sum(results["Sy_i"])
+            for i in range(results["Sy_i"].shape[0]):
+                writedict[f"Sy_i/{i}"] = results["Sy_i"][i]
+        if "Sz_i" in results.keys():
+            writedict["Z"] = jnp.sum(results["Sz_i"])
+            for i in range(results["Sz_i"].shape[0]):
+                writedict[f"Sz_i/{i}"] = results["Sz_i"][i]
+
+        self.writer.write_scalars(self.write_index, {"dt": dt, "t": t})
+        self.writer.write_scalars(jnp.floor(1E6*t), writedict)
+
+    def __do_measurement(self, results: Dict[str, List[jnp.ndarray]], times: List[float], t: float) -> None:
+        self.real_times[-1].append(time.time())
+        _res = self.measurer.measure()
+        for obs in self.measurer.observables:
+            results[obs].append(_res[obs])
+        times.append(t)
+        if self.writer is not None:
+            self.__write(_res, t, times[-1] - times[-2])
+
+    def __convert_to_arrays(self, results: Dict[str, List[jnp.ndarray]], times: List[float]) -> None:
+        """
+        Converts results dictionary and times list to jnp.ndarray and sets them to the respective instance variables.
+        """
+        if len(self.results.keys()) == 0:
+            self.results = {}
+            for obs in results.keys():
+                self.results[obs] = jnp.array(results[obs])
+            self.times = jnp.array(times)
+        else:
+            for obs in results.keys():
+                if obs in self.results.keys():
+                    self.results[obs] = jnp.concatenate([self.results[obs], jnp.array(results[obs])])
+                else:
+                    self.results[obs] = jnp.array(results[obs])
+            self.times = jnp.concatenate([self.times, jnp.array(times)])
+        self.real_times[-1] = jnp.ndarray(self.real_times[-1])
+        self.real_times[-1] = self.real_times[-1] - self.real_times[-1][0]
 
 
 def copy_state(source: jVMC.vqs.NQS, target: jVMC.vqs.NQS) -> None:

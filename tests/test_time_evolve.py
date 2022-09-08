@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 import jVMC
-import jvmc_utilities.state_init
+import jvmc_utilities.time_evolve
 import pytest
 
 
@@ -21,7 +21,7 @@ def setup_updown():
     jvmc_utilities.operators.initialisation_operators(povm)
     lind = jVMC.operator.POVMOperator(povm)
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
-    init = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind)
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind)
 
     init.initialize(measure_step=-1)
     params = psi.get_parameters()
@@ -41,7 +41,7 @@ def test_with_measurement(setup_updown):
     lind.add({"name": "downdown_dis", "strength": 1.0, "sites": (0, 1)})
     measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
     measurer.set_observables(["Sz_i", "N"])
-    init = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
 
     init.initialize(steps=steps)
 
@@ -69,8 +69,8 @@ def test_measurestep(setup_updown):
     measurer.set_observables(["Sz_i"])
 
     params = psi.get_parameters()
-    init1 = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
-    init2 = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
+    init1 = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
+    init2 = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
 
     init1.initialize(steps=steps, measure_step=0)
     psi.set_parameters(params)
@@ -96,7 +96,7 @@ def test_no_measurement_with_convergence():
     jvmc_utilities.operators.initialisation_operators(povm)
     lind = jVMC.operator.POVMOperator(povm)
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
-    init = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind, povm=povm, sampler=sampler)
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, povm=povm, sampler=sampler)
 
     init.initialize(convergence=True, atol=1E-5, measure_step=-1)
 
@@ -118,7 +118,7 @@ def test_with_measurement_with_convergence(setup_updown):
     lind.add({"name": "downdown_dis", "strength": 1.0, "sites": (0, 1)})
     measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
     measurer.set_observables(["Sz_i", "N"])
-    init = jvmc_utilities.state_init.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer,
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer,
                                                  povm=povm, sampler=sampler)
 
     init.initialize(convergence=True, atol=1E-5)

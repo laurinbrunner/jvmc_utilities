@@ -88,10 +88,12 @@ def aqi_model_operators(povm: jvmcop.POVM) -> None:
     """
     Adds operators used in the active quantum ising model to the POVM object.
 
-    This function adds the operator :math:`\sigma^+\sigma^-$` in both unitary and dissipative form.
-    They are called "spin_flip_uni" and "spin_flip_dis" respectively.
+    This function adds the operator :math:`\sigma^+\sigma^-$` in both unitary and dissipative form and the operator
+    :math:`\sigma^z\sigma^+\sigma^-` in dissipative form.
+    They are called "spin_flip_uni", "spin_flip_dis" and "spin_flip_Z_dis" respectively.
     """
     M_2Body, T_inv_2Body = higher_order_M_T_inv(2, povm.M, povm.T_inv)
+    M_3Body, T_inv_3Body = higher_order_M_T_inv(3, povm.M, povm.T_inv)
 
     sigmas = jvmcop.get_paulis()
 
@@ -100,8 +102,11 @@ def aqi_model_operators(povm: jvmcop.POVM) -> None:
     sz_minus = (sigmas[0] - 1j * sigmas[1]) / 2
 
     spin_flip = jnp.kron(sz_plus, sz_minus)
+    spin_flip_Z = jnp.kron(jnp.kron(sz_plus, sz_minus), sigmas[2])
 
     if "spin_flip_uni" not in povm.operators.keys():
         povm.add_unitary("spin_flip_uni", jvmcop.matrix_to_povm(spin_flip, M_2Body, T_inv_2Body, mode="uni"))
     if "spin_flip_dis" not in povm.operators.keys():
         povm.add_dissipator("spin_flip_dis", jvmcop.matrix_to_povm(spin_flip, M_2Body, T_inv_2Body, mode="dis"))
+    if "spin_flip_Z_dis" not in povm.operators.keys():
+        povm.add_dissipator("spin_flip_Z_dis", jvmcop.matrix_to_povm(spin_flip_Z, M_3Body, T_inv_3Body, mode="dis"))
