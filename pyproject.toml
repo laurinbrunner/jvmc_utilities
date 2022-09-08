@@ -1,0 +1,20 @@
+# NOTE: you have to use single-quoted strings in TOML for regular expressions.
+# It's the equivalent of r-strings in Python.  Multiline strings are treated as
+# verbose regular expressions by Black.  Use [ ] to denote a significant space
+# character.
+
+# -- Build -----------------------------------------------------------------------------
+
+[build-system]
+requires = [
+    "setuptools >= 60.0.0",
+    "setuptools_scm[toml] >= 4",
+    "setuptools_scm_git_archive",
+    "wheel >= 0.37.0",
+]
+build-backend = "setuptools.build_meta"
+
+
+[tool.setuptools_scm]
+write_to = "jvmc_utilities/_version.py"
+git_describe_command = "git describe --dirty --tags --long --match * --first-parent"
