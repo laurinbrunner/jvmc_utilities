@@ -380,7 +380,7 @@ class TimeEvolver:
                 else:
                     self.results[obs] = jnp.array(results[obs])
             self.times = jnp.concatenate([self.times, jnp.array(times)])
-        self.real_times[-1] = jnp.ndarray(self.real_times[-1])
+        self.real_times[-1] = jnp.array(self.real_times[-1])
         self.real_times[-1] = self.real_times[-1] - self.real_times[-1][0]
 
 
