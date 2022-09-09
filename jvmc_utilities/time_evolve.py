@@ -2,10 +2,13 @@ import jax.numpy as jnp
 from tqdm import tqdm
 from typing import Optional, Union, List, Dict
 import jVMC
-from . import Measurement
+from jvmc_utilities.measurement import Measurement
 import warnings
 import time
 from clu import metric_writers
+
+import jvmc_utilities
+import jax
 
 
 class ConvergenceWarning(Warning):
@@ -355,7 +358,11 @@ class TimeEvolver:
             results[obs].append(_res[obs])
         times.append(t)
         if self.writer is not None:
-            self.__write(_res, t, times[-1] - times[-2])
+            if len(times) == 1:
+                dt = times[-1]
+            else:
+                dt = times[-1] - times[-2]
+            self.__write(_res, t, dt)
 
     def __convert_to_arrays(self, results: Dict[str, List[jnp.ndarray]], times: List[float]) -> None:
         """
@@ -379,3 +386,26 @@ class TimeEvolver:
 
 def copy_state(source: jVMC.vqs.NQS, target: jVMC.vqs.NQS) -> None:
     target.set_parameters(source.get_parameters())
+
+
+if __name__ == '__main__':
+    L = 4
+    prngkey = jax.random.PRNGKey(0)
+    cnn = jvmc_utilities.nets.POVMCNN(L=L)  # , depth=3, features=(8, 8))
+    psi = jVMC.vqs.NQS(cnn, seed=1234)
+    sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
+    # sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
+    tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1.,
+                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+    stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
+    # stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
+    povm = jVMC.operator.POVM({"dim": "1D", "L": L})
+    lind = jVMC.operator.POVMOperator(povm)
+    jvmc_utilities.operators.initialisation_operators(povm)
+    lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
+    lind.add({"name": "updown_dis", "strength": 5.0, "sites": (2, 3)})
+    measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
+    measurer.set_observables(["Sz_i"])
+
+    evol = TimeEvolver(psi, tdvpEquation, stepper, measurer, None)
+    evol.run(lind, 1)
