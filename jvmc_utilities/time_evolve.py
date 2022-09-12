@@ -321,11 +321,11 @@ class TimeEvolver:
         finally:
             pbar.close()
 
-        # Make sure that measurement is done at the last step
-        if measure_counter != 0:
-            self.__do_measurement(results, times, t)
+            # Make sure that measurement is done at the last step
+            if measure_counter != 0:
+                self.__do_measurement(results, times, t)
 
-        self.__convert_to_arrays(results, times)
+            self.__convert_to_arrays(results, times)
 
     def __norm_fun(self, v: jnp.ndarray) -> float:
         return jnp.real(jnp.conj(jnp.transpose(v)).dot(self.tdvpEquation.S_dot(v)))
@@ -348,7 +348,9 @@ class TimeEvolver:
             for i in range(results["Sz_i"].shape[0]):
                 writedict[f"Sz_i/{i}"] = results["Sz_i"][i]
         if "M_sq" in results.keys():
-            writedict["M_sq"] = results["M_sq"]
+            writedict["M_sq"] = jnp.mean(results["M_sq"])
+            for i in range(results["M_sq"].shape[0]):
+                writedict[f"M_sq/{i}"] = results["M_sq"][i]
 
         self.writer.write_scalars(self.write_index, {"dt": dt, "t": t})
         self.write_index += 1
