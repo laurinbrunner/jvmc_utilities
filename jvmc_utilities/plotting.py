@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import jax.numpy as jnp
 
 
-def plotting(results, times=None):
+def plotting(results, times=None, no_legend=False):
     """
     Plots the particle density and magnetization as well as Sx, Sy and Sz for all sites.
     """
@@ -23,13 +23,15 @@ def plotting(results, times=None):
 
         ax4.plot(times, results["Sz_i"][:, i], label=r"$\langle \sigma_{z," + str_i + r"} \rangle$")
 
-    ax1.legend()
+    if not no_legend:
+        ax1.legend()
+        ax2.legend()
+        ax3.legend()
+        ax4.legend()
+
     ax1.grid()
-    ax2.legend()
     ax2.grid()
-    ax3.legend()
     ax3.grid()
-    ax4.legend()
     ax4.grid()
     ax2.yaxis.tick_right()
     ax4.yaxis.tick_right()
