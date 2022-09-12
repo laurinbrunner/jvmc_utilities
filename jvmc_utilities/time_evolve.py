@@ -336,19 +336,22 @@ class TimeEvolver:
             writedict["N"] = results["N"][0] + results["N"][1]
             writedict["M"] = results["N"][0] - results["N"][1]
         if "Sx_i" in results.keys():
-            writedict["X"] = jnp.sum(results["Sx_i"])
+            writedict["X"] = jnp.mean(results["Sx_i"])
             for i in range(results["Sx_i"].shape[0]):
                 writedict[f"Sx_i/{i}"] = results["Sx_i"][i]
         if "Sy_i" in results.keys():
-            writedict["Y"] = jnp.sum(results["Sy_i"])
+            writedict["Y"] = jnp.mean(results["Sy_i"])
             for i in range(results["Sy_i"].shape[0]):
                 writedict[f"Sy_i/{i}"] = results["Sy_i"][i]
         if "Sz_i" in results.keys():
-            writedict["Z"] = jnp.sum(results["Sz_i"])
+            writedict["Z"] = jnp.mean(results["Sz_i"])
             for i in range(results["Sz_i"].shape[0]):
                 writedict[f"Sz_i/{i}"] = results["Sz_i"][i]
+        if "M_sq" in results.keys():
+            writedict["M_sq"] = results["M_sq"]
 
         self.writer.write_scalars(self.write_index, {"dt": dt, "t": t})
+        self.write_index += 1
         self.writer.write_scalars(jnp.floor(1E6*t), writedict)
 
     def __do_measurement(self, results: Dict[str, List[jnp.ndarray]], times: List[float], t: float) -> None:
