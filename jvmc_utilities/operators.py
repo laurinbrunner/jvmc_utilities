@@ -103,6 +103,8 @@ def aqi_model_operators(povm: jvmcop.POVM) -> None:
 
     spin_flip = jnp.kron(sz_plus, sz_minus)
     spin_flip_Z = jnp.kron(jnp.kron(sz_plus, sz_minus), sigmas[2])
+    inv_spin_flip = jnp.kron(sz_minus, sz_plus)
+    inv_spin_flip_Z = jnp.kron(jnp.kron(sz_minus, sz_plus), sigmas[2])
 
     if "spin_flip_uni" not in povm.operators.keys():
         povm.add_unitary("spin_flip_uni", jvmcop.matrix_to_povm(spin_flip, M_2Body, T_inv_2Body, mode="uni"))
@@ -110,3 +112,10 @@ def aqi_model_operators(povm: jvmcop.POVM) -> None:
         povm.add_dissipator("spin_flip_dis", jvmcop.matrix_to_povm(spin_flip, M_2Body, T_inv_2Body, mode="dis"))
     if "spin_flip_Z_dis" not in povm.operators.keys():
         povm.add_dissipator("spin_flip_Z_dis", jvmcop.matrix_to_povm(spin_flip_Z, M_3Body, T_inv_3Body, mode="dis"))
+    if "inv_spin_flip_uni" not in povm.operators.keys():
+        povm.add_unitary("inv_spin_flip_uni", jvmcop.matrix_to_povm(inv_spin_flip, M_2Body, T_inv_2Body, mode="uni"))
+    if "inv_spin_flip_dis" not in povm.operators.keys():
+        povm.add_dissipator("inv_spin_flip_dis", jvmcop.matrix_to_povm(inv_spin_flip, M_2Body, T_inv_2Body, mode="dis"))
+    if "inv_spin_flip_Z_dis" not in povm.operators.keys():
+        povm.add_dissipator("inv_spin_flip_Z_dis", jvmcop.matrix_to_povm(inv_spin_flip_Z, M_3Body, T_inv_3Body,
+                                                                         mode="dis"))
