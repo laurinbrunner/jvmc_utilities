@@ -57,6 +57,7 @@ class POVMCNN(nn.Module):
             for idx in range(self.L):
                 logprobs = jax.nn.log_softmax(self.cnn_cell(conf_oh)[idx].transpose()).transpose()
                 conf = conf.at[idx].set(jax.random.categorical(_tmpkeys[idx], logprobs))
+                conf_oh = jax.nn.one_hot(conf, self.inputDim)
             return conf
 
         keys = jax.random.split(key, batchSize)
