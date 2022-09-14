@@ -36,10 +36,7 @@ class POVMCNN(nn.Module):
 
             x = nn.Conv(features=self.features[i], kernel_size=self.kernel_size,
                         kernel_dilation=2**i*self.kernel_dilation,
-                        padding='VALID')(x)  # Last one omitted since it doesn't hold physical meaning ?
-
-            # a, g = jnp.split(x, 2, axis=-1)
-            # x = nn.sigmoid(g) * jnp.tanh(a)
+                        padding='VALID')(x)
 
             x = self.actFun(x)
 
