@@ -47,6 +47,8 @@ class POVMCNN(nn.Module):
 
         x = nn.Conv(features=4, kernel_size=self.kernel_size, kernel_dilation=1, padding='VALID')(x)
 
+        x = self.actFun(x)
+
         return x[0]
 
     def sample(self, batchSize, key):
