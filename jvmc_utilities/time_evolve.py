@@ -135,41 +135,43 @@ class Initializer:
         self.__do_measurement(results, times, self.times[-1])
 
         t = times[-1]
+        try:
+            # This try block ensures that the results are saved to the object variables even when the initialisation
+            # is cancelled early, either from outside or through a convergence problem
+            measure_counter = 0
+            conv_steps = 0
+            while True:
+                dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
+                                           hamiltonian=self.lindbladian, psi=self.psi)
 
-        measure_counter = 0
-        conv_steps = 0
-        while True:
-            dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
-                                       psi=self.psi)
-
-            if jnp.any(jnp.isnan(dp)):
-                warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
-                break
-
-            t += dt
-            self.psi.set_parameters(dp)
-
-            if measure_counter == measure_step:
-                self.__do_measurement(results, times, t)
-                measure_counter = 0
-            else:
-                measure_counter += 1
-
-            if conv_steps == self.max_conv_steps:
-                curr_res = self.conv_measurer.measure()[conv_obs]
-                diff = self.__convergence_function(prev_res, curr_res)
-                if diff < atol:
+                if jnp.any(jnp.isnan(dp)):
+                    warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
                     break
-                prev_res = curr_res
-                conv_steps = 0
-            else:
-                conv_steps += 1
 
-        # Make sure that measurement is done on the converged state
-        if measure_counter != 0:
-            self.__do_measurement(results, times, t)
+                t += dt
+                self.psi.set_parameters(dp)
 
-        self.__convert_to_arrays(results, times)
+                if measure_counter == measure_step:
+                    self.__do_measurement(results, times, t)
+                    measure_counter = 0
+                else:
+                    measure_counter += 1
+
+                if conv_steps == self.max_conv_steps:
+                    curr_res = self.conv_measurer.measure()[conv_obs]
+                    diff = self.__convergence_function(prev_res, curr_res)
+                    if diff < atol:
+                        break
+                    prev_res = curr_res
+                    conv_steps = 0
+                else:
+                    conv_steps += 1
+        finally:
+            # Make sure that measurement is done on the converged state
+            if measure_counter != 0:
+                self.__do_measurement(results, times, t)
+
+            self.__convert_to_arrays(results, times)
 
     def __no_measurements_no_conv(self, steps: int) -> None:
         """
@@ -197,25 +199,28 @@ class Initializer:
 
         t = times[-1]
 
-        measure_counter = 0
-        for _ in tqdm(range(steps)):
-            dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
-                                       psi=self.psi)
+        try:
+            # This try block ensures that the results are saved to the object variables even when the initialisation
+            # is cancelled early, either from outside or through a convergence problem
+            measure_counter = 0
+            for _ in tqdm(range(steps)):
+                dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
+                                           hamiltonian=self.lindbladian, psi=self.psi)
 
-            if jnp.any(jnp.isnan(dp)):
-                warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
-                break
+                if jnp.any(jnp.isnan(dp)):
+                    warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
+                    break
 
-            t += dt
-            self.psi.set_parameters(dp)
+                t += dt
+                self.psi.set_parameters(dp)
 
-            if measure_counter == measure_step:
-                self.__do_measurement(results, times, t)
-                measure_counter = 0
-            else:
-                measure_counter += 1
-
-        self.__convert_to_arrays(results, times)
+                if measure_counter == measure_step:
+                    self.__do_measurement(results, times, t)
+                    measure_counter = 0
+                else:
+                    measure_counter += 1
+        finally:
+            self.__convert_to_arrays(results, times)
 
     @staticmethod
     def __convergence_function(a: jnp.ndarray, b: jnp.ndarray) -> float:
@@ -279,8 +284,10 @@ class TimeEvolver:
         results = {obs: [] for obs in self.measurer.observables}
         times = []
         self.real_times.append([])
+        tdvp_errors = []
+        tdvp_residuals = []
 
-        self.__do_measurement(results, times, self.times[-1])
+        self.__do_measurement(results, times, self.times[-1], tdvp_errors, tdvp_residuals)
 
         t = times[0]
 
@@ -306,7 +313,7 @@ class TimeEvolver:
                 self.psi.set_parameters(dp)
 
                 if measure_counter == measure_step:
-                    self.__do_measurement(results, times, t)
+                    self.__do_measurement(results, times, t, tdvp_errors, tdvp_residuals)
                     measure_counter = 0
                 else:
                     measure_counter += 1
@@ -323,9 +330,9 @@ class TimeEvolver:
 
             # Make sure that measurement is done at the last step
             if measure_counter != 0:
-                self.__do_measurement(results, times, t)
+                self.__do_measurement(results, times, t, tdvp_errors, tdvp_residuals)
 
-            self.__convert_to_arrays(results, times)
+            self.__convert_to_arrays(results, times, tdvp_errors, tdvp_residuals)
 
     def __norm_fun(self, v: jnp.ndarray) -> float:
         return jnp.real(jnp.conj(jnp.transpose(v)).dot(self.tdvpEquation.S_dot(v)))
@@ -335,41 +342,78 @@ class TimeEvolver:
         if "N" in results.keys():
             writedict["N"] = results["N"][0] + results["N"][1]
             writedict["M"] = results["N"][0] - results["N"][1]
+            if self.measurer.mc_errors:
+                writedict["N_MC_error"] = results["N_MC_error"][0] + results["N_MC_error"][1]
+                writedict["M_MC_error"] = results["N_MC_error"][0] - results["N_MC_error"][1]
         if "Sx_i" in results.keys():
             writedict["X"] = jnp.mean(results["Sx_i"])
             for i in range(results["Sx_i"].shape[0]):
                 writedict[f"Sx_i/{i}"] = results["Sx_i"][i]
+            if self.measurer.mc_errors:
+                writedict["X_MC_error"] = jnp.mean(results["Sx_i_MC_error"])
+                for i in range(results["Sx_i_MC_error"].shape[0]):
+                    writedict[f"Sx_i_MC_error/{i}"] = results["Sx_i_MC_error"][i]
         if "Sy_i" in results.keys():
             writedict["Y"] = jnp.mean(results["Sy_i"])
             for i in range(results["Sy_i"].shape[0]):
                 writedict[f"Sy_i/{i}"] = results["Sy_i"][i]
+            if self.measurer.mc_errors:
+                writedict["Y_MC_error"] = jnp.mean(results["Sy_i_MC_error"])
+                for i in range(results["Sy_i"].shape[0]):
+                    writedict[f"Sy_i_MC_error/{i}"] = results["Sy_i_MC_error"][i]
         if "Sz_i" in results.keys():
             writedict["Z"] = jnp.mean(results["Sz_i"])
             for i in range(results["Sz_i"].shape[0]):
                 writedict[f"Sz_i/{i}"] = results["Sz_i"][i]
+            if self.measurer.mc_errors:
+                writedict["Z_MC_error"] = jnp.mean(results["Sz_i_MC_error"])
+                for i in range(results["Sz_i"].shape[0]):
+                    writedict[f"Sz_i_MC_error/{i}"] = results["Sz_i_MC_error"][i]
         if "M_sq" in results.keys():
             writedict["M_sq"] = jnp.mean(results["M_sq"])
             for i in range(results["M_sq"].shape[0]):
                 writedict[f"M_sq/{i}"] = results["M_sq"][i]
 
-        self.writer.write_scalars(self.write_index, {"dt": dt, "t": t})
+        tdvp_err = self.tdvpEquation.get_residuals()
+        self.writer.write_scalars(self.write_index, {"dt": dt, "t": t, "tdvp_Error": tdvp_err[0],
+                                                     "tdvp_Residual": tdvp_err[1]})
         self.write_index += 1
         self.writer.write_scalars(jnp.floor(1E6*t), writedict)
 
-    def __do_measurement(self, results: Dict[str, List[jnp.ndarray]], times: List[float], t: float) -> None:
+    def __do_measurement(
+            self,
+            results: Dict[str, List[jnp.ndarray]],
+            times: List[float],
+            t: float,
+            tdvp_errors: List[float],
+            tdvp_residuals: List[float]
+    ) -> None:
         self.real_times[-1].append(time.time())
         _res = self.measurer.measure()
         for obs in self.measurer.observables:
             results[obs].append(_res[obs])
         times.append(t)
+
+        if len(times) == 1:
+            dt = times[-1]
+            tdvp_errors.append(0.)
+            tdvp_residuals.append(0.)
+        else:
+            dt = times[-1] - times[-2]
+            td_errs = self.tdvpEquation.get_residuals()
+            tdvp_errors.append(td_errs[0])
+            tdvp_residuals.append(td_errs[1])
+
         if self.writer is not None:
-            if len(times) == 1:
-                dt = times[-1]
-            else:
-                dt = times[-1] - times[-2]
             self.__write(_res, t, dt)
 
-    def __convert_to_arrays(self, results: Dict[str, List[jnp.ndarray]], times: List[float]) -> None:
+    def __convert_to_arrays(
+            self,
+            results: Dict[str, List[jnp.ndarray]],
+            times: List[float],
+            tdvp_errors: List[float],
+            tdvp_residuals: List[float]
+    ) -> None:
         """
         Converts results dictionary and times list to jnp.ndarray and sets them to the respective instance variables.
         """
@@ -378,6 +422,8 @@ class TimeEvolver:
             for obs in results.keys():
                 self.results[obs] = jnp.array(results[obs])
             self.times = jnp.array(times)
+            self.tdvp_error = jnp.array(tdvp_errors)
+            self.tdvp_residuals = jnp.array(tdvp_residuals)
         else:
             for obs in results.keys():
                 if obs in self.results.keys():
@@ -385,6 +431,8 @@ class TimeEvolver:
                 else:
                     self.results[obs] = jnp.array(results[obs])
             self.times = jnp.concatenate([self.times, jnp.array(times)])
+            self.tdvp_error = jnp.concatenate([self.tdvp_error, jnp.array(tdvp_errors)])
+            self.tdvp_residuals = jnp.concatenate([self.tdvp_residuals, jnp.array(tdvp_residuals)])
         self.real_times[-1] = jnp.array(self.real_times[-1])
         self.real_times[-1] = self.real_times[-1] - self.real_times[-1][0]
 

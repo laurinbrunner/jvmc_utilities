@@ -21,11 +21,13 @@ class Measurement:
     def __init__(
             self,
             sampler: Union[jVMC.sampler.MCSampler, jVMC.sampler.ExactSampler],
-            povm: jvmcop.POVM
+            povm: jvmcop.POVM,
+            mc_errors: bool = False
     ) -> None:
         self.sampler = sampler
         self.povm = povm
         self.L = self.povm.system_data["L"] // 2
+        self.mc_errors = mc_errors
 
         self.M_2_body, self.T_inv_2_body = higher_order_M_T_inv(2, self.povm.M, self.povm.T_inv)
 
@@ -40,6 +42,11 @@ class Measurement:
         self.observables = []
         self.observables_functions = {"N": self._measure_N, "Sx_i": self._measure_Sx_i, "Sy_i": self._measure_Sy_i,
                                       "Sz_i": self._measure_Sz_i, "M_sq": self._measure_M_sq, "N_i": self._measure_N_i}
+        self.observables_functions_errors = {"N_MC_error": self._measure_N_MC_error,
+                                             "Sx_i_MC_error": self._measure_Sx_i_MC_error,
+                                             "Sy_i_MC_error": self._measure_Sy_i_MC_error,
+                                             "Sz_i_MC_error": self._measure_Sz_i_MC_error,
+                                             "N_i_MC_error": self._measure_N_i_MC_error}
         self.calculated_n = False
 
     def set_observables(self, observables: List[str]) -> None:
@@ -52,6 +59,9 @@ class Measurement:
 
     def _calculate_n(self) -> None:
         self.n = mpi.global_mean(self.n_obser[self.confs], self.probs)
+        if self.mc_errors:
+            self.n_mc_error = mpi.global_variance(self.n_obser[self.confs], self.probs) / \
+                              jnp.sqrt(self.sampler.get_last_number_of_samples())
         self.calculated_n = True
 
     def _measure_N_i(self) -> jnp.ndarray:
@@ -59,19 +69,41 @@ class Measurement:
             self._calculate_n()
         return self.n
 
+    def _measure_N_i_MC_error(self) -> jnp.ndarray:
+        if not self.calculated_n:
+            self._calculate_n()
+        return self.n_mc_errors
+
     def _measure_N(self) -> jnp.ndarray:
         if not self.calculated_n:
             self._calculate_n()
         return jnp.array([jnp.mean(self.n[::2]), jnp.mean(self.n[1::2])])
 
+    def _measure_N_MC_error(self) -> jnp.ndarray:
+        if not self.calculated_n:
+            self._calculate_n()
+        return jnp.array([jnp.mean(self.n_mc_error[::2]), jnp.mean(self.n_mc_error[1::2])])
+
     def _measure_Sx_i(self) -> jnp.ndarray:
         return mpi.global_mean(self.povm.observables["X"][self.confs], self.probs)
+
+    def _measure_Sx_i_MC_error(self) -> jnp.ndarray:
+        return mpi.global_variance(self.povm.observables["X"][self.confs], self.probs) / \
+                              jnp.sqrt(self.sampler.get_last_number_of_samples())
 
     def _measure_Sy_i(self) -> jnp.ndarray:
         return mpi.global_mean(self.povm.observables["Y"][self.confs], self.probs)
 
+    def _measure_Sy_i_MC_error(self) -> jnp.ndarray:
+        return mpi.global_variance(self.povm.observables["Y"][self.confs], self.probs) / \
+                              jnp.sqrt(self.sampler.get_last_number_of_samples())
+
     def _measure_Sz_i(self) -> jnp.ndarray:
         return mpi.global_mean(self.povm.observables["Z"][self.confs], self.probs)
+
+    def _measure_Sz_i_MC_error(self) -> jnp.ndarray:
+        return mpi.global_variance(self.povm.observables["Z"][self.confs], self.probs) / \
+                              jnp.sqrt(self.sampler.get_last_number_of_samples())
 
     def _measure_M_sq(self) -> jnp.ndarray:
         n_sq_u = mpi.global_mean(self.n_sq_obser[self.confs[:, :, ::2]], self.probs)
@@ -105,5 +137,11 @@ class Measurement:
         results = {}
         for obs in self.observables:
             results[obs] = self.observables_functions[obs]()
+        if self.mc_errors:
+            for obs in self.observables:
+                if obs == "M_sq":
+                    continue
+                obs = obs + "_MC_error"
+                results[obs] = self.observables_functions_errors[obs]()
 
         return results

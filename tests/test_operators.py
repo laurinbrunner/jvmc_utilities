@@ -67,11 +67,19 @@ def test_aqi_model_operators():
 
     assert("spin_flip_uni" not in povm.operators.keys())
     assert("spin_flip_dis" not in povm.operators.keys())
+    assert("spin_flip_Z_dis" not in povm.operators.keys())
+    assert("inv_spin_flip_uni" not in povm.operators.keys())
+    assert("inv_spin_flip_dis" not in povm.operators.keys())
+    assert("inv_spin_flip_Z_dis" not in povm.operators.keys())
 
     aqi_model_operators(povm)
 
     assert("spin_flip_uni" in povm.operators.keys())
     assert("spin_flip_dis" in povm.operators.keys())
+    assert("spin_flip_Z_dis" in povm.operators.keys())
+    assert("inv_spin_flip_uni" in povm.operators.keys())
+    assert("inv_spin_flip_dis" in povm.operators.keys())
+    assert("inv_spin_flip_Z_dis" in povm.operators.keys())
 
     try:
         aqi_model_operators(povm)

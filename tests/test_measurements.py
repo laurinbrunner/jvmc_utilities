@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 import jVMC
 import pytest
+import jax
 
 import jvmc_utilities.time_evolve
 
@@ -57,3 +58,30 @@ def test_M_sq_2(setup_method):
     results = measurer.measure()
 
     assert (jnp.allclose(results["M_sq"], 1, atol=1E-3))
+
+
+def test_MC_error():
+    L = 4
+    psi = jVMC.util.util.init_net({"batch_size": 5000, "net1":
+        {"type": "RNN", "parameters": {"inputDim": 4, "logProbFactor": 1,
+                                       "hiddenSize": 3, "L": L, "depth": 1,
+                                       "cell": "RNN"}}},
+                                  (L,), 123)
+    sampler = jVMC.sampler.MCSampler(psi, (L,), jax.random.PRNGKey(0))
+    povm = jVMC.operator.POVM({"dim": "1D", "L": L})
+    measurer = jvmc_utilities.measurement.Measurement(sampler, povm, mc_errors=True)
+    measurer_without = jvmc_utilities.measurement.Measurement(sampler, povm, mc_errors=False)
+    measurer.set_observables(["Sz_i", "Sx_i", "Sy_i", "N"])
+    measurer_without.set_observables(["Sz_i", "Sx_i", "Sy_i", "N"])
+
+    result_with = measurer.measure()
+    result_without = measurer_without.measure()
+
+    assert "Sz_i_MC_error" in result_with.keys()
+    assert "Sx_i_MC_error" in result_with.keys()
+    assert "Sy_i_MC_error" in result_with.keys()
+    assert "N_MC_error" in result_with.keys()
+    assert "Sz_i_MC_error" not in result_without.keys()
+    assert "Sx_i_MC_error" not in result_without.keys()
+    assert "Sy_i_MC_error" not in result_without.keys()
+    assert "N_MC_error" not in result_without.keys()
