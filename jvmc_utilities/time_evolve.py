@@ -342,18 +342,33 @@ class TimeEvolver:
         if "N" in results.keys():
             writedict["N"] = results["N"][0] + results["N"][1]
             writedict["M"] = results["N"][0] - results["N"][1]
+            if self.measurer.mc_errors:
+                writedict["N_MC_error"] = results["N_MC_error"][0] + results["N_MC_error"][1]
+                writedict["M_MC_error"] = results["N_MC_error"][0] - results["N_MC_error"][1]
         if "Sx_i" in results.keys():
             writedict["X"] = jnp.mean(results["Sx_i"])
             for i in range(results["Sx_i"].shape[0]):
                 writedict[f"Sx_i/{i}"] = results["Sx_i"][i]
+            if self.measurer.mc_errors:
+                writedict["X_MC_error"] = jnp.mean(results["Sx_i_MC_error"])
+                for i in range(results["Sx_i_MC_error"].shape[0]):
+                    writedict[f"Sx_i_MC_error/{i}"] = results["Sx_i_MC_error"][i]
         if "Sy_i" in results.keys():
             writedict["Y"] = jnp.mean(results["Sy_i"])
             for i in range(results["Sy_i"].shape[0]):
                 writedict[f"Sy_i/{i}"] = results["Sy_i"][i]
+            if self.measurer.mc_errors:
+                writedict["Y_MC_error"] = jnp.mean(results["Sy_i_MC_error"])
+                for i in range(results["Sy_i"].shape[0]):
+                    writedict[f"Sy_i_MC_error/{i}"] = results["Sy_i_MC_error"][i]
         if "Sz_i" in results.keys():
             writedict["Z"] = jnp.mean(results["Sz_i"])
             for i in range(results["Sz_i"].shape[0]):
                 writedict[f"Sz_i/{i}"] = results["Sz_i"][i]
+            if self.measurer.mc_errors:
+                writedict["Z_MC_error"] = jnp.mean(results["Sz_i_MC_error"])
+                for i in range(results["Sz_i"].shape[0]):
+                    writedict[f"Sz_i_MC_error/{i}"] = results["Sz_i_MC_error"][i]
         if "M_sq" in results.keys():
             writedict["M_sq"] = jnp.mean(results["M_sq"])
             for i in range(results["M_sq"].shape[0]):
