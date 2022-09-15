@@ -74,6 +74,7 @@ class POVMCNNGated(nn.Module):
     features: int = (8,)
     inputDim: int = 4
     depth: int = 2
+    actFun: callable = nn.elu
 
     def __call__(self, x):
         x = jax.nn.one_hot(x, self.inputDim)
@@ -98,10 +99,9 @@ class POVMCNNGated(nn.Module):
 
         x = jnp.pad(x, ((0, 0), (1, 0), (0, 0)))
 
-        x = nn.Conv(features=2*4, kernel_size=self.kernel_size, kernel_dilation=1, padding='VALID')(x)
+        x = nn.Conv(features=4, kernel_size=self.kernel_size, kernel_dilation=1, padding='VALID')(x)
 
-        a, g = jnp.split(x, 2, axis=-1)
-        x = nn.sigmoid(g) * jnp.tanh(a)
+        x = self.actFun(x)
 
         return x[0]
 
