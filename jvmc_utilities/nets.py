@@ -1,10 +1,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-import jVMC
 from flax import linen as nn
-import jvmc_utilities
-import matplotlib.pyplot as plt
 
 
 class POVMCNN(nn.Module):
@@ -118,38 +115,3 @@ class POVMCNNGated(nn.Module):
 
         keys = jax.random.split(key, batchSize)
         return jax.vmap(generate_sample)(keys)
-
-
-if __name__ == '__main__':
-    L = 4
-    prngkey = jax.random.PRNGKey(0)
-
-    cnn = POVMCNN(L=L) #, depth=3, features=(8, 8))
-
-    psi = jVMC.vqs.NQS(cnn, seed=1234)
-
-    sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
-    #sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
-
-    tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
-
-    stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
-    #stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
-
-    povm = jVMC.operator.POVM({"dim": "1D", "L": L})
-    lind = jVMC.operator.POVMOperator(povm)
-    jvmc_utilities.operators.initialisation_operators(povm)
-    lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
-    lind.add({"name": "updown_dis", "strength": 5.0, "sites": (2, 3)})
-
-    measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
-    measurer.set_observables(["Sz_i"])
-    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
-
-    init.initialize(100)
-
-    for i in range(L):
-        plt.plot(init.times, init.results["Sz_i"][:, i], label=f"{i}")
-    plt.legend()
-    plt.show()
