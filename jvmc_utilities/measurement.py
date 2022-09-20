@@ -10,9 +10,10 @@ class Measurement:
     """
     This class provides functionality to measure different observables on a POVM state.
 
-    The supported measurement observables are "Sx_i", "Sy_i", "Sz_i", "N", "N_i" and "M_sq", where the subscribt i
-    indicates site resolved measurements (Note that the sites here are not the physical ones but only the computational
-    sites). The "N" measurement is returned as an array containing "N_up" and "N_down", whereas "N_i" gives the
+    The supported measurement observables are "Sx_i", "Sy_i", "Sz_i", "N", "N_i" and "M_sq" (which is defined by
+    :math:`M^2 = 1/L^2 (\sum_l m_l)^2 `), where the subscribt i indicates site resolved measurements (Note that the
+    sites here are not the physical ones but only the computational sites). The "N" measurement is returned as an array
+    containing "N_up" and "N_down", whereas "N_i" gives the
     occupation of every computational site.
 
     Only those observables given through the set_observables method will be calculated and returned.
@@ -125,7 +126,7 @@ class Measurement:
                                                                          jnp.roll(self.confs[:, :, ::2], j, axis=2)]
                                                        for j in range(self.L)]), axis=0), self.probs)
 
-        return (n_sq_u + n_sq_d + n_corr_uu + n_corr_dd - n_corr_ud - n_corr_du) / self.L
+        return jnp.mean(n_sq_u + n_sq_d + n_corr_uu + n_corr_dd - n_corr_ud - n_corr_du) / self.L
 
     def measure(self) -> Dict[str, jnp.ndarray]:
         """

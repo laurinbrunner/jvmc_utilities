@@ -370,9 +370,7 @@ class TimeEvolver:
                 for i in range(results["Sz_i"].shape[0]):
                     writedict[f"Sz_i_MC_error/{i}"] = results["Sz_i_MC_error"][i]
         if "M_sq" in results.keys():
-            writedict["M_sq"] = jnp.mean(results["M_sq"])
-            for i in range(results["M_sq"].shape[0]):
-                writedict[f"M_sq/{i}"] = results["M_sq"][i]
+            writedict["M_sq"] = results["M_sq"]
 
         tdvp_err = self.tdvpEquation.get_residuals()
         self.writer.write_scalars(self.write_index, {"dt": dt, "t": t, "tdvp_Error": tdvp_err[0],
