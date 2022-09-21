@@ -392,7 +392,7 @@ class TimeEvolver:
             results[obs].append(_res[obs])
         times.append(t)
 
-        if len(times) == 1:
+        if len(times) == 0:
             dt = times[-1]
             tdvp_errors.append(0.)
             tdvp_residuals.append(0.)
