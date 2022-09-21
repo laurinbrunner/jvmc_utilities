@@ -145,4 +145,7 @@ class Measurement:
                 obs = obs + "_MC_error"
                 results[obs] = self.observables_functions_errors[obs]()
 
+        # Free up space
+        self.confs, self.probs = None, None
+
         return results
