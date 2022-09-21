@@ -392,15 +392,18 @@ class TimeEvolver:
             results[obs].append(_res[obs])
         times.append(t)
 
-        if len(times) == 0:
+        if len(times) == 1:
             dt = times[-1]
-            tdvp_errors.append(0.)
-            tdvp_residuals.append(0.)
         else:
             dt = times[-1] - times[-2]
+
+        try:
             td_errs = self.tdvpEquation.get_residuals()
             tdvp_errors.append(td_errs[0])
             tdvp_residuals.append(td_errs[1])
+        except Exception:
+            tdvp_errors.append(0.)
+            tdvp_residuals.append(0.)
 
         if self.writer is not None:
             self.__write(_res, t, dt)
