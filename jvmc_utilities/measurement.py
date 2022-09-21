@@ -42,7 +42,8 @@ class Measurement:
 
         self.observables = []
         self.observables_functions = {"N": self._measure_N, "Sx_i": self._measure_Sx_i, "Sy_i": self._measure_Sy_i,
-                                      "Sz_i": self._measure_Sz_i, "M_sq": self._measure_M_sq, "N_i": self._measure_N_i}
+                                      "Sz_i": self._measure_Sz_i, "M_sq": self._measure_M_sq, "N_i": self._measure_N_i,
+                                      "m_corr": self._measure_m_corr}
         self.observables_functions_errors = {"N_MC_error": self._measure_N_MC_error,
                                              "Sx_i_MC_error": self._measure_Sx_i_MC_error,
                                              "Sy_i_MC_error": self._measure_Sy_i_MC_error,
@@ -128,6 +129,27 @@ class Measurement:
 
         return jnp.mean(n_sq_u + n_sq_d + n_corr_uu + n_corr_dd - n_corr_ud - n_corr_du) / self.L
 
+    def _measure_m_corr(self) -> jnp.ndarray:
+        lower_triangular = jnp.array([[True if j < i else False
+                                       for j in range(self.L)] for i in range(self.L)])
+
+        n_uu = jnp.array([[0 if j < i else mpi.global_mean(self.n_sq_obser[self.confs[:, :, i]], self.probs) if i == j
+                           else mpi.global_mean(self.n_corr_obser[self.confs[:, :, i], self.confs[:, :, j]], self.probs)
+                           for j in range(0, 2*self.L, 2)] for i in range(0, 2*self.L, 2)])
+
+        n_uu = n_uu.at[lower_triangular].set(n_uu.T[lower_triangular])
+
+        n_dd = jnp.array([[0 if j < i else mpi.global_mean(self.n_sq_obser[self.confs[:, :, i]], self.probs) if i == j
+                           else mpi.global_mean(self.n_corr_obser[self.confs[:, :, i], self.confs[:, :, j]], self.probs)
+                           for j in range(1, 2*self.L, 2)] for i in range(1, 2*self.L, 2)])
+
+        n_dd = n_dd.at[lower_triangular].set(n_dd.T[lower_triangular])
+
+        n_du = jnp.array([[mpi.global_mean(self.n_corr_obser[self.confs[:, :, i], self.confs[:, :, j]], self.probs)
+                           for i in range(1, 2*self.L, 2)] for j in range(0, 2*self.L, 2)])
+
+        return n_uu - n_du - n_du.T + n_dd
+
     def measure(self) -> Dict[str, jnp.ndarray]:
         """
         Returns dictionary of measurements.
@@ -140,7 +162,7 @@ class Measurement:
             results[obs] = self.observables_functions[obs]()
         if self.mc_errors:
             for obs in self.observables:
-                if obs == "M_sq":
+                if obs in ["M_sq", "m_corr"]:
                     continue
                 obs = obs + "_MC_error"
                 results[obs] = self.observables_functions_errors[obs]()

@@ -371,6 +371,11 @@ class TimeEvolver:
                     writedict[f"Sz_i_MC_error/{i}"] = results["Sz_i_MC_error"][i]
         if "M_sq" in results.keys():
             writedict["M_sq"] = results["M_sq"]
+        if "m_corr" in results.keys():
+            L = results["m_corr"].shape[0]
+            for i in range(L):
+                for j in range(L):
+                    writedict[f"m_corr/{i},{j}"] = results["m_corr"][i, j]
 
         tdvp_err = self.tdvpEquation.get_residuals()
         self.writer.write_scalars(self.write_index, {"dt": dt, "t": t, "tdvp_Error": tdvp_err[0],
