@@ -337,7 +337,7 @@ class TimeEvolver:
     def __norm_fun(self, v: jnp.ndarray) -> float:
         return jnp.real(jnp.conj(jnp.transpose(v)).dot(self.tdvpEquation.S_dot(v)))
 
-    def __write(self, results: Dict[str, List[jnp.ndarray]], t: float, dt: float) -> None:
+    def __write(self, results: Dict[str, List[jnp.ndarray]], t: float, dt: float, tdvp_errs: List[float]) -> None:
         writedict = {}
         if "N" in results.keys():
             writedict["N"] = results["N"][0] + results["N"][1]
@@ -377,9 +377,8 @@ class TimeEvolver:
                 for j in range(L):
                     writedict[f"m_corr/{i},{j}"] = results["m_corr"][i, j]
 
-        tdvp_err = self.tdvpEquation.get_residuals()
-        self.writer.write_scalars(self.write_index, {"dt": dt, "t": t, "tdvp_Error": tdvp_err[0],
-                                                     "tdvp_Residual": tdvp_err[1]})
+        self.writer.write_scalars(self.write_index, {"dt": dt, "t": t, "tdvp_Error": tdvp_errs[0],
+                                                     "tdvp_Residual": tdvp_errs[1]})
         self.write_index += 1
         self.writer.write_scalars(jnp.floor(1E6*t), writedict)
 
@@ -404,14 +403,13 @@ class TimeEvolver:
 
         try:
             td_errs = self.tdvpEquation.get_residuals()
-            tdvp_errors.append(td_errs[0])
-            tdvp_residuals.append(td_errs[1])
         except Exception:
-            tdvp_errors.append(0.)
-            tdvp_residuals.append(0.)
+            td_errs = [0., 0.]
+        tdvp_errors.append(td_errs[0])
+        tdvp_residuals.append(td_errs[1])
 
         if self.writer is not None:
-            self.__write(_res, t, dt)
+            self.__write(_res, t, dt, td_errs)
 
     def __convert_to_arrays(
             self,
