@@ -370,9 +370,12 @@ class TimeEvolver:
                 for i in range(results["Sz_i"].shape[0]):
                     writedict[f"Sz_i_MC_error/{i}"] = results["Sz_i_MC_error"][i]
         if "M_sq" in results.keys():
-            writedict["M_sq"] = jnp.mean(results["M_sq"])
-            for i in range(results["M_sq"].shape[0]):
-                writedict[f"M_sq/{i}"] = results["M_sq"][i]
+            writedict["M_sq"] = results["M_sq"]
+        if "m_corr" in results.keys():
+            L = results["m_corr"].shape[0]
+            for i in range(L):
+                for j in range(L):
+                    writedict[f"m_corr/{i},{j}"] = results["m_corr"][i, j]
 
         tdvp_err = self.tdvpEquation.get_residuals()
         self.writer.write_scalars(self.write_index, {"dt": dt, "t": t, "tdvp_Error": tdvp_err[0],
@@ -396,13 +399,16 @@ class TimeEvolver:
 
         if len(times) == 1:
             dt = times[-1]
-            tdvp_errors.append(0.)
-            tdvp_residuals.append(0.)
         else:
             dt = times[-1] - times[-2]
+
+        try:
             td_errs = self.tdvpEquation.get_residuals()
             tdvp_errors.append(td_errs[0])
             tdvp_residuals.append(td_errs[1])
+        except Exception:
+            tdvp_errors.append(0.)
+            tdvp_residuals.append(0.)
 
         if self.writer is not None:
             self.__write(_res, t, dt)
