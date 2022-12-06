@@ -381,6 +381,7 @@ class TimeEvolver:
                                                      "tdvp_Residual": tdvp_errs[1]})
         writedict["tdvp_Error/time"] = tdvp_errs[0]
         writedict["tdvp_Residual/time"] = tdvp_errs[1]
+        writedict["dt/time"] = dt
 
         self.write_index += 1
         self.writer.write_scalars(jnp.floor(1E6*t), writedict)
