@@ -37,7 +37,8 @@ class POVMCNN(nn.Module):
 
             x = self.actFun(x)
 
-        x = jnp.pad(x, ((0, 0), (1, 0), (0, 0)))
+        pad = 2 if self.depth == 0 else 1
+        x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
 
         x = nn.Conv(features=4, kernel_size=self.kernel_size, kernel_dilation=1, padding='VALID')(x)
 
@@ -94,7 +95,8 @@ class POVMCNNGated(nn.Module):
             a, g = jnp.split(x, 2, axis=-1)
             x = nn.sigmoid(g) * jnp.tanh(a)
 
-        x = jnp.pad(x, ((0, 0), (1, 0), (0, 0)))
+        pad = 2 if self.depth == 0 else 1
+        x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
 
         x = nn.Conv(features=4, kernel_size=self.kernel_size, kernel_dilation=1, padding='VALID')(x)
 
