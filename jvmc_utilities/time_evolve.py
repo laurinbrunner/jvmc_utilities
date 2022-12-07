@@ -261,7 +261,8 @@ class TimeEvolver:
             tdvpEquation: jVMC.util.TDVP,
             stepper: Union[jVMC.util.Euler, jVMC.util.AdaptiveHeun],
             measurer: Measurement,
-            writer: metric_writers.summary_writer.SummaryWriter = None
+            writer: metric_writers.summary_writer.SummaryWriter = None,
+            additional_hparams: Dict = None,
     ) -> None:
         self.psi = psi
         self.tdvpEquation = tdvpEquation
@@ -273,6 +274,8 @@ class TimeEvolver:
 
         self.measurer = measurer
         self.writer = writer
+        self.additional_hparams = additional_hparams
+        self.__write_hparams()
         self.write_index = 0
 
         self.real_times = []  # Every list in this list is for potential reruns
@@ -448,6 +451,40 @@ class TimeEvolver:
             self.tdvp_residuals = jnp.concatenate([self.tdvp_residuals, jnp.array(tdvp_residuals)])
         self.real_times[-1] = jnp.array(self.real_times[-1])
         self.real_times[-1] = self.real_times[-1] - self.real_times[-1][0]
+
+    def __write_hparams(self):
+        """
+        Write hyperparameters to tensorboard file.
+        """
+        hparams = {"system_size": self.tdvpEquation.sampler.sampleShape[0],
+                   "network": type(self.psi.net),
+                   "seed": self.psi.seed,
+                   "sampler": type(self.tdvpEquation.sampler),
+                   "stepper": type(self.stepper),
+                   "snrTol": self.tdvpEquation.snrTol,
+                   "svdTol": self.tdvpEquation.svdTol,
+                   "batchSize": self.psi.batchSize}
+
+        net_params = vars(self.psi.net)
+        for k in net_params:
+            if k in ["name", "parent", "_state"]:
+                continue
+            elif k == "actFun":
+                hparams[k] = net_params[k].__name__
+            else:
+                hparams[k] = net_params[k]
+
+        if type(self.tdvpEquation.sampler) is jVMC.sampler.MCSampler:
+            hparams["sample_size"] = self.tdvpEquation.sampler.numSamples
+
+        if type(self.stepper) is jVMC.util.stepper.AdaptiveHeun:
+            hparams["integration_tolerance"] = self.stepper.tolerance
+
+        if self.additional_hparams is not None:
+            for k in self.additional_hparams.keys():
+                hparams[k] = self.additional_hparams[k]
+
+        self.writer.write_hparams(hparams)
 
 
 def copy_state(source: jVMC.vqs.NQS, target: jVMC.vqs.NQS) -> None:
