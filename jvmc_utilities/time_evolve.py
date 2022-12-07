@@ -277,6 +277,7 @@ class TimeEvolver:
 
         self.real_times = []  # Every list in this list is for potential reruns
         self.times = jnp.array([0.])
+        self.integrated_tdvpError = 0.
         self.results = {}
 
     def run(self, lindbladian: jVMC.operator.POVMOperator, max_time: float, measure_step: int = 0) -> None:
@@ -378,9 +379,11 @@ class TimeEvolver:
                     writedict[f"m_corr/{i},{j}"] = results["m_corr"][i, j]
 
         self.writer.write_scalars(self.write_index, {"dt": dt, "t": t, "tdvp_Error": tdvp_errs[0],
-                                                     "tdvp_Residual": tdvp_errs[1]})
+                                                     "tdvp_Residual": tdvp_errs[1],
+                                                     "tdvp_Error/integrated_time": self.integrated_tdvpError})
         writedict["tdvp_Error/time"] = tdvp_errs[0]
         writedict["tdvp_Residual/time"] = tdvp_errs[1]
+        writedict["tdvp_Error/integrated_time"] = self.integrated_tdvpError
         writedict["dt/time"] = dt
 
         self.write_index += 1
@@ -411,6 +414,8 @@ class TimeEvolver:
             td_errs = [0., 0.]
         tdvp_errors.append(td_errs[0])
         tdvp_residuals.append(td_errs[1])
+
+        self.integrated_tdvpError += dt * td_errs[0]
 
         if self.writer is not None:
             self.__write(_res, t, dt, td_errs)
