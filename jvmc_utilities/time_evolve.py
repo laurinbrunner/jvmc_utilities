@@ -463,7 +463,9 @@ class TimeEvolver:
                    "stepper": type(self.stepper),
                    "snrTol": self.tdvpEquation.snrTol,
                    "svdTol": self.tdvpEquation.svdTol,
-                   "batchSize": self.psi.batchSize}
+                   "batchSize": self.psi.batchSize,
+                   "jVMC_version": jVMC.__version__,
+                   "jvmc_utilities_version": jvmc_utilities.__version__}
 
         net_params = vars(self.psi.net)
         for k in net_params:
