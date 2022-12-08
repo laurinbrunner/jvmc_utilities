@@ -276,7 +276,8 @@ class TimeEvolver:
         self.measurer = measurer
         self.writer = writer
         self.additional_hparams = additional_hparams
-        self.__write_hparams()
+        if writer is not None:
+            self.__write_hparams()
         self.write_index = 0
         self.parameter_file = parameter_file
         if parameter_file is not None:
@@ -469,10 +470,10 @@ class TimeEvolver:
         Write hyperparameters to tensorboard file.
         """
         hparams = {"system_size": self.tdvpEquation.sampler.sampleShape[0],
-                   "network": type(self.psi.net),
+                   "network": str(type(self.psi.net)),
                    "seed": self.psi.seed,
-                   "sampler": type(self.tdvpEquation.sampler),
-                   "stepper": type(self.stepper),
+                   "sampler": str(type(self.tdvpEquation.sampler)),
+                   "stepper": str(type(self.stepper)),
                    "snrTol": self.tdvpEquation.snrTol,
                    "svdTol": self.tdvpEquation.svdTol,
                    "batchSize": self.psi.batchSize,
@@ -481,7 +482,7 @@ class TimeEvolver:
 
         net_params = vars(self.psi.net)
         for k in net_params:
-            if k in ["name", "parent", "_state"]:
+            if k in ["name", "parent", "_state", "_id"]:
                 continue
             elif k == "actFun":
                 hparams[k] = net_params[k].__name__
