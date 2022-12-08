@@ -263,6 +263,7 @@ class TimeEvolver:
             measurer: Measurement,
             writer: metric_writers.summary_writer.SummaryWriter = None,
             additional_hparams: Dict = None,
+            parameter_file: str = None
     ) -> None:
         self.psi = psi
         self.tdvpEquation = tdvpEquation
@@ -277,6 +278,9 @@ class TimeEvolver:
         self.additional_hparams = additional_hparams
         self.__write_hparams()
         self.write_index = 0
+        self.parameter_file = parameter_file
+        if parameter_file is not None:
+            self.parameter_output_manager = jVMC.util.OutputManager(parameter_file)
 
         self.real_times = []  # Every list in this list is for potential reruns
         self.times = jnp.array([0.])
@@ -422,6 +426,8 @@ class TimeEvolver:
 
         if self.writer is not None:
             self.__write(_res, t, dt, td_errs)
+        if self.parameter_file is not None:
+            self.__save_parameters(t)
 
     def __convert_to_arrays(
             self,
@@ -451,6 +457,12 @@ class TimeEvolver:
             self.tdvp_residuals = jnp.concatenate([self.tdvp_residuals, jnp.array(tdvp_residuals)])
         self.real_times[-1] = jnp.array(self.real_times[-1])
         self.real_times[-1] = self.real_times[-1] - self.real_times[-1][0]
+
+    def __save_parameters(self, t: float):
+        """
+        Save network parameters of neural quantum state.
+        """
+        self.parameter_output_manager.write_network_checkpoint(t, self.psi.get_parameters())
 
     def __write_hparams(self):
         """
