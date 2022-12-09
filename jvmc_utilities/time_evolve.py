@@ -6,6 +6,7 @@ from jvmc_utilities.measurement import Measurement
 import warnings
 import time
 from clu import metric_writers
+import h5py
 
 import jvmc_utilities
 import jax
@@ -276,12 +277,31 @@ class TimeEvolver:
         self.measurer = measurer
         self.writer = writer
         self.additional_hparams = additional_hparams
+        self.write_index = 0
+
+        if parameter_file is not None:
+            try:
+                _f = h5py.File(parameter_file, 'r')
+                runs = list(_f.keys())
+                for i, r in enumerate(runs):
+                    runs[i] = int(r.split("_")[-1])
+                current_run = max(runs) + 1
+                group = f"run_{current_run}"
+                _f.close()
+            except FileNotFoundError:
+                group = "run_1"
+
+            if self.additional_hparams is not None:
+                self.adaptive_stepper["parameter_output_run"] = group
+            else:
+                self.adaptive_stepper = {"parameter_output_run": group}
+
+            self.parameter_output_manager = jVMC.util.OutputManager(parameter_file, append=True, group=group)
+        else:
+            self.parameter_output_manager = None
+
         if writer is not None:
             self.__write_hparams()
-        self.write_index = 0
-        self.parameter_file = parameter_file
-        if parameter_file is not None:
-            self.parameter_output_manager = jVMC.util.OutputManager(parameter_file)
 
         self.real_times = []  # Every list in this list is for potential reruns
         self.times = jnp.array([0.])
@@ -427,7 +447,7 @@ class TimeEvolver:
 
         if self.writer is not None:
             self.__write(_res, t, dt, td_errs)
-        if self.parameter_file is not None:
+        if self.parameter_output_manager is not None:
             self.__save_parameters(t)
 
     def __convert_to_arrays(
@@ -525,5 +545,5 @@ if __name__ == '__main__':
     measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
     measurer.set_observables(["Sz_i"])
 
-    evol = TimeEvolver(psi, tdvpEquation, stepper, measurer, None)
+    evol = TimeEvolver(psi, tdvpEquation, stepper, measurer, writer=None, parameter_file="test")
     evol.run(lind, 1)
