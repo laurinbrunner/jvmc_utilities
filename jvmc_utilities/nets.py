@@ -7,6 +7,9 @@ from flax import linen as nn
 class POVMCNN(nn.Module):
     """
     Autoregressive implementation of a Convolutional Neural Network.
+
+    This implementation is inspired by 'WaveNet: A Generative Model for Raw Audio' by van den Oord et. al.
+    (arXiv:1609.03499).
     """
 
     L: int = 4
