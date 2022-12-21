@@ -64,6 +64,9 @@ class POVMCNN(nn.Module):
 class POVMCNNGated(nn.Module):
     """
     Autoregressive implementation of a Convolutional Neural Network with a gated activation function.
+
+    This implementation is inspired by 'WaveNet: A Generative Model for Raw Audio' by van den Oord et. al.
+    (arXiv:1609.03499).
     """
 
     L: int = 4
