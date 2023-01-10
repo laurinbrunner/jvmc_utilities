@@ -479,13 +479,13 @@ class TimeEvolver:
         self.real_times[-1] = jnp.array(self.real_times[-1])
         self.real_times[-1] = self.real_times[-1] - self.real_times[-1][0]
 
-    def __save_parameters(self, t: float):
+    def __save_parameters(self, t: float) -> None:
         """
         Save network parameters of neural quantum state.
         """
         self.parameter_output_manager.write_network_checkpoint(t, self.psi.get_parameters())
 
-    def __write_hparams(self):
+    def __write_hparams(self) -> None:
         """
         Write hyperparameters to tensorboard file.
         """
