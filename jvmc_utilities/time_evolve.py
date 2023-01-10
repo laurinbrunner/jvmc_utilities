@@ -6,6 +6,7 @@ from jvmc_utilities.measurement import Measurement
 import warnings
 import time
 from clu import metric_writers
+import h5py
 
 import jvmc_utilities
 import jax
@@ -261,7 +262,9 @@ class TimeEvolver:
             tdvpEquation: jVMC.util.TDVP,
             stepper: Union[jVMC.util.Euler, jVMC.util.AdaptiveHeun],
             measurer: Measurement,
-            writer: metric_writers.summary_writer.SummaryWriter = None
+            writer: metric_writers.summary_writer.SummaryWriter = None,
+            additional_hparams: Dict = None,
+            parameter_file: str = None
     ) -> None:
         self.psi = psi
         self.tdvpEquation = tdvpEquation
@@ -273,10 +276,36 @@ class TimeEvolver:
 
         self.measurer = measurer
         self.writer = writer
+        self.additional_hparams = additional_hparams
         self.write_index = 0
+
+        if parameter_file is not None:
+            try:
+                _f = h5py.File(parameter_file, 'r')
+                runs = list(_f.keys())
+                for i, r in enumerate(runs):
+                    runs[i] = int(r.split("_")[-1])
+                current_run = max(runs) + 1
+                group = f"run_{current_run}"
+                _f.close()
+            except FileNotFoundError:
+                group = "run_1"
+
+            if self.additional_hparams is not None:
+                self.adaptive_stepper["parameter_output_run"] = group
+            else:
+                self.adaptive_stepper = {"parameter_output_run": group}
+
+            self.parameter_output_manager = jVMC.util.OutputManager(parameter_file, append=True, group=group)
+        else:
+            self.parameter_output_manager = None
+
+        if writer is not None:
+            self.__write_hparams()
 
         self.real_times = []  # Every list in this list is for potential reruns
         self.times = jnp.array([0.])
+        self.integrated_tdvpError = 0.
         self.results = {}
 
     def run(self, lindbladian: jVMC.operator.POVMOperator, max_time: float, measure_step: int = 0) -> None:
@@ -378,7 +407,13 @@ class TimeEvolver:
                     writedict[f"m_corr/{i},{j}"] = results["m_corr"][i, j]
 
         self.writer.write_scalars(self.write_index, {"dt": dt, "t": t, "tdvp_Error": tdvp_errs[0],
-                                                     "tdvp_Residual": tdvp_errs[1]})
+                                                     "tdvp_Residual": tdvp_errs[1],
+                                                     "tdvp_Error/integrated_time": self.integrated_tdvpError})
+        writedict["tdvp_Error/time"] = tdvp_errs[0]
+        writedict["tdvp_Residual/time"] = tdvp_errs[1]
+        writedict["tdvp_Error/integrated_time"] = self.integrated_tdvpError
+        writedict["dt/time"] = dt
+
         self.write_index += 1
         self.writer.write_scalars(jnp.floor(1E6*t), writedict)
 
@@ -408,8 +443,12 @@ class TimeEvolver:
         tdvp_errors.append(td_errs[0])
         tdvp_residuals.append(td_errs[1])
 
+        self.integrated_tdvpError += dt * td_errs[0]
+
         if self.writer is not None:
             self.__write(_res, t, dt, td_errs)
+        if self.parameter_output_manager is not None:
+            self.__save_parameters(t)
 
     def __convert_to_arrays(
             self,
@@ -440,6 +479,48 @@ class TimeEvolver:
         self.real_times[-1] = jnp.array(self.real_times[-1])
         self.real_times[-1] = self.real_times[-1] - self.real_times[-1][0]
 
+    def __save_parameters(self, t: float) -> None:
+        """
+        Save network parameters of neural quantum state.
+        """
+        self.parameter_output_manager.write_network_checkpoint(t, self.psi.get_parameters())
+
+    def __write_hparams(self) -> None:
+        """
+        Write hyperparameters to tensorboard file.
+        """
+        hparams = {"system_size": self.tdvpEquation.sampler.sampleShape[0],
+                   "network": str(type(self.psi.net)),
+                   "seed": self.psi.seed,
+                   "sampler": str(type(self.tdvpEquation.sampler)),
+                   "stepper": str(type(self.stepper)),
+                   "snrTol": self.tdvpEquation.snrTol,
+                   "svdTol": self.tdvpEquation.svdTol,
+                   "batchSize": self.psi.batchSize,
+                   "jVMC_version": jVMC.__version__,
+                   "jvmc_utilities_version": jvmc_utilities.__version__}
+
+        net_params = vars(self.psi.net)
+        for k in net_params:
+            if k in ["name", "parent", "_state", "_id"]:
+                continue
+            elif k == "actFun":
+                hparams[k] = net_params[k].__name__
+            else:
+                hparams[k] = net_params[k]
+
+        if type(self.tdvpEquation.sampler) is jVMC.sampler.MCSampler:
+            hparams["sample_size"] = self.tdvpEquation.sampler.numSamples
+
+        if type(self.stepper) is jVMC.util.stepper.AdaptiveHeun:
+            hparams["integration_tolerance"] = self.stepper.tolerance
+
+        if self.additional_hparams is not None:
+            for k in self.additional_hparams.keys():
+                hparams[k] = self.additional_hparams[k]
+
+        self.writer.write_hparams(hparams)
+
 
 def copy_state(source: jVMC.vqs.NQS, target: jVMC.vqs.NQS) -> None:
     target.set_parameters(source.get_parameters())
@@ -464,5 +545,5 @@ if __name__ == '__main__':
     measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
     measurer.set_observables(["Sz_i"])
 
-    evol = TimeEvolver(psi, tdvpEquation, stepper, measurer, None)
+    evol = TimeEvolver(psi, tdvpEquation, stepper, measurer, writer=None, parameter_file="test")
     evol.run(lind, 1)

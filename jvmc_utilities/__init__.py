@@ -3,6 +3,7 @@ from .measurement import Measurement
 from .time_evolve import Initializer, copy_state
 from . import nets
 from . import plotting
+from . import stepper
 
 try:
     from ._version import __version__

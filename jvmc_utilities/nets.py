@@ -7,6 +7,9 @@ from flax import linen as nn
 class POVMCNN(nn.Module):
     """
     Autoregressive implementation of a Convolutional Neural Network.
+
+    This implementation is inspired by 'WaveNet: A Generative Model for Raw Audio' by van den Oord et. al.
+    (arXiv:1609.03499).
     """
 
     L: int = 4
@@ -37,7 +40,8 @@ class POVMCNN(nn.Module):
 
             x = self.actFun(x)
 
-        x = jnp.pad(x, ((0, 0), (1, 0), (0, 0)))
+        pad = 2 if self.depth == 0 else 1
+        x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
 
         x = nn.Conv(features=4, kernel_size=self.kernel_size, kernel_dilation=1, padding='VALID')(x)
 
@@ -63,6 +67,9 @@ class POVMCNN(nn.Module):
 class POVMCNNGated(nn.Module):
     """
     Autoregressive implementation of a Convolutional Neural Network with a gated activation function.
+
+    This implementation is inspired by 'WaveNet: A Generative Model for Raw Audio' by van den Oord et. al.
+    (arXiv:1609.03499).
     """
 
     L: int = 4
@@ -94,7 +101,8 @@ class POVMCNNGated(nn.Module):
             a, g = jnp.split(x, 2, axis=-1)
             x = nn.sigmoid(g) * jnp.tanh(a)
 
-        x = jnp.pad(x, ((0, 0), (1, 0), (0, 0)))
+        pad = 2 if self.depth == 0 else 1
+        x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
 
         x = nn.Conv(features=4, kernel_size=self.kernel_size, kernel_dilation=1, padding='VALID')(x)
 
