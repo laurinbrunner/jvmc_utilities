@@ -408,7 +408,7 @@ class TimeEvolver:
 
         self.writer.write_scalars(self.write_index, {"dt": dt, "t": t, "tdvp_Error": tdvp_errs[0],
                                                      "tdvp_Residual": tdvp_errs[1],
-                                                     "tdvp_Error/integrated_time": self.integrated_tdvpError})
+                                                     "tdvp_Error/integrated": self.integrated_tdvpError})
         writedict["tdvp_Error/time"] = tdvp_errs[0]
         writedict["tdvp_Residual/time"] = tdvp_errs[1]
         writedict["tdvp_Error/integrated_time"] = self.integrated_tdvpError
