@@ -1,7 +1,5 @@
 import numpy as np
 import jax.numpy
-import jVMC
-import jvmc_utilities as ju
 from typing import Tuple
 
 
