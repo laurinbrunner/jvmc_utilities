@@ -123,3 +123,39 @@ class POVMCNNGated(nn.Module):
 
         keys = jax.random.split(key, batchSize)
         return jax.vmap(generate_sample)(keys)
+
+
+class AFFN(nn.Module):
+    """
+    Autoregressive implementation of a feed forward neural network.
+
+    This implementation is inspired by 'Solving Statistical Mechanics Using Variational Autoregressive Networks'
+    DOI: 10.1103/PhysRevLett.122.080602
+    """
+
+    L: int = 4
+    hiddenSize: int = 8
+    inputDim: int = 4
+    depth: int = 2
+    actFun: callable = nn.elu
+
+    def __call__(self, x):
+        pass
+
+    @nn.compact
+    def fnn_cell(self, x):
+        pass
+
+    def sample(self, batchSize, key):
+        def generate_sample(key):
+            _tmpkeys = jax.random.split(key, self.L)
+            conf = jnp.zeros(self.L, dtype=np.int64)
+            conf_oh = jax.nn.one_hot(conf, self.inputDim)
+            for idx in range(self.L):
+                logprobs = jax.nn.log_softmax(self.fnn_cell(conf_oh)[idx].transpose()).transpose()
+                conf = conf.at[idx].set(jax.random.categorical(_tmpkeys[idx], logprobs))
+                conf_oh = jax.nn.one_hot(conf, self.inputDim)
+            return conf
+
+        keys = jax.random.split(key, batchSize)
+        return jax.vmap(generate_sample)(keys)
