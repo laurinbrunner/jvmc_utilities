@@ -13,11 +13,13 @@ class BulirschStoer:
             self,
             timeStep: float = 1e-2,
             kmax: int = 8,
+            kmin: int = 1,
             atol: float = 1e-5,
             rtol: float = 1e-7,
             maxStep: float = 0.1
     ) -> None:
         self.kmax = kmax
+        self.kmin = kmin
         self.substeps = 2 * (np.arange(self.kmax, dtype=int) + 1)
         self.dt = timeStep
         self.atol = atol
@@ -40,7 +42,7 @@ class BulirschStoer:
 
     @k_target.setter
     def k_target(self, new_k: int) -> None:
-        if 1 < new_k <= self.kmax:
+        if self.kmin <= new_k <= self.kmax:
             self.__k_target = new_k
 
     def _midpoint(
