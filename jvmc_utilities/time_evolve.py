@@ -292,9 +292,9 @@ class TimeEvolver:
                 group = "run_1"
 
             if self.additional_hparams is not None:
-                self.adaptive_stepper["parameter_output_run"] = group
+                self.additional_hparams["parameter_output_run"] = group
             else:
-                self.adaptive_stepper = {"parameter_output_run": group}
+                self.additional_hparams = {"parameter_output_run": group}
 
             self.parameter_output_manager = jVMC.util.OutputManager(parameter_file, append=True, group=group)
         else:
