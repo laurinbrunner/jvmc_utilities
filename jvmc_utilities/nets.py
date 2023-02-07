@@ -140,11 +140,21 @@ class AFFN(nn.Module):
     actFun: callable = nn.elu
 
     def __call__(self, x):
-        pass
+        x = nn.one_hot(x, self.inputDim)
+        probs = nn.log_softmax(self.fnn_cell(x))
+
+        return jnp.sum(probs * x, dtype=np.float64)
 
     @nn.compact
     def fnn_cell(self, x):
-        pass
+        mask = jnp.triu(jnp.ones((x.shape[0], self.hiddenSize)))
+
+        W = nn.Dense(features=self.hiddenSize, use_bias=True)(jnp.ones_like(x))
+        W = jnp.multiply(mask, W)
+
+        x = jnp.dot(W, x)
+
+        return self.actFun(x)
 
     def sample(self, batchSize, key):
         def generate_sample(key):
