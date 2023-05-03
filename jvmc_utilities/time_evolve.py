@@ -506,6 +506,11 @@ class TimeEvolver:
                 continue
             elif k == "actFun":
                 hparams[k] = net_params[k].__name__
+            elif k == "orbit":
+                if net_params[k] is None:
+                    hparams[k] = "not symmetric"
+                else:
+                    hparams[k] = "symmetric"
             else:
                 hparams[k] = net_params[k]
 
