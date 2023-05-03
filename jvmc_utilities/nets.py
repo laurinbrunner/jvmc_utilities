@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from flax import linen as nn
+from jVMC.util.symmetries import LatticeSymmetry
 
 
 class POVMCNN(nn.Module):
@@ -19,12 +20,24 @@ class POVMCNN(nn.Module):
     inputDim: int = 4
     actFun: callable = nn.elu
     depth: int = 2
+    orbit: LatticeSymmetry = None
+    logProbFactor: float = 1  # 1 for POVMs and 0.5 for pure wave functions
 
     def __call__(self, x):
-        x = jax.nn.one_hot(x, self.inputDim)
-        probs = jax.nn.log_softmax(self.cnn_cell(x))
+        def evaluate(x):
+            x_oh = jax.nn.one_hot(x, self.inputDim)
+            return jnp.sum(jax.nn.log_softmax(self.cnn_cell(x_oh)) * x_oh)
 
-        return jnp.sum(probs * x, dtype=np.float64)
+        if self.orbit is None:
+            # No symmetry case
+            return evaluate(x)
+        else:
+            # Symmetry case
+            x = jax.vmap(lambda o, s: jnp.dot(o, s), in_axes=(0, None))(self.orbit.orbit, x)
+
+            res = jnp.mean(jnp.exp(jax.vmap(evaluate)(x) / self.logProbFactor), axis=0)
+
+            return self.logProbFactor * jnp.log(res)
 
     @nn.compact
     def cnn_cell(self, x):
@@ -49,6 +62,20 @@ class POVMCNN(nn.Module):
 
         return x[0]
 
+    def sym_cell(self, x):
+        if self.orbit is None:
+            return self.cnn_cell(x)
+        else:
+            inShape = x.shape
+            x = jax.vmap(lambda o, s: jnp.dot(o, s.ravel()).reshape(inShape), in_axes=(0, None))(self.orbit.orbit, x)
+
+            def evaluate(x):
+                return self.cnn_cell(x)
+
+            res = jnp.mean(jax.vmap(evaluate)(x), axis=0)
+
+            return res
+
     def sample(self, batchSize, key):
         def generate_sample(key):
             _tmpkeys = jax.random.split(key, self.L)
@@ -60,8 +87,14 @@ class POVMCNN(nn.Module):
                 conf_oh = jax.nn.one_hot(conf, self.inputDim)
             return conf
 
-        keys = jax.random.split(key, batchSize)
-        return jax.vmap(generate_sample)(keys)
+        keys = jax.random.split(key, batchSize+1)
+        configs = jax.vmap(generate_sample)(keys[:-1])
+
+        orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
+
+        configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s), in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
+
+        return configs
 
 
 class POVMCNNGated(nn.Module):
@@ -79,12 +112,24 @@ class POVMCNNGated(nn.Module):
     inputDim: int = 4
     depth: int = 2
     actFun: callable = nn.elu
+    orbit: LatticeSymmetry = None
+    logProbFactor: float = 1  # 1 for POVMs and 0.5 for pure wave functions
 
     def __call__(self, x):
-        x = jax.nn.one_hot(x, self.inputDim)
-        probs = jax.nn.log_softmax(self.cnn_cell(x))
+        def evaluate(x):
+            x_oh = jax.nn.one_hot(x, self.inputDim)
+            return jnp.sum(jax.nn.log_softmax(self.cnn_cell(x_oh)) * x_oh)
 
-        return jnp.sum(probs * x, dtype=np.float64)
+        if self.orbit is None:
+            # No symmetry case
+            return evaluate(x)
+        else:
+            # Symmetry case
+            x = jax.vmap(lambda o, s: jnp.dot(o, s), in_axes=(0, None))(self.orbit.orbit, x)
+
+            res = jnp.mean(jnp.exp(jax.vmap(evaluate)(x) / self.logProbFactor), axis=0)
+
+            return self.logProbFactor * jnp.log(res)
 
     @nn.compact
     def cnn_cell(self, x):
@@ -121,5 +166,11 @@ class POVMCNNGated(nn.Module):
                 conf_oh = jax.nn.one_hot(conf, self.inputDim)
             return conf
 
-        keys = jax.random.split(key, batchSize)
-        return jax.vmap(generate_sample)(keys)
+        keys = jax.random.split(key, batchSize+1)
+        configs = jax.vmap(generate_sample)(keys[:-1])
+
+        orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
+
+        configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s), in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
+
+        return configs
