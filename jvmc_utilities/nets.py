@@ -90,9 +90,9 @@ class POVMCNN(nn.Module):
         keys = jax.random.split(key, batchSize+1)
         configs = jax.vmap(generate_sample)(keys[:-1])
 
-        orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
-
-        configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s), in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
+        if self.orbit is not None:
+            orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
+            configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s), in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
 
         return configs
 
@@ -169,8 +169,8 @@ class POVMCNNGated(nn.Module):
         keys = jax.random.split(key, batchSize+1)
         configs = jax.vmap(generate_sample)(keys[:-1])
 
-        orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
-
-        configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s), in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
+        if self.orbit is not None:
+            orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
+            configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s), in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
 
         return configs
