@@ -194,3 +194,19 @@ class CNNCell(nn.Module):
                     padding='VALID')(x)
         x = self.actFun(x)
         return x
+
+
+class GatedCNNCell(nn.Module):
+
+    features: int = 8
+    kernel_size: int = (2,)
+    kernel_dilation: int = 1
+
+    @nn.compact
+    def __call__(self, x):
+        x = nn.Conv(features=self.features, kernel_size=self.kernel_size, kernel_dilation=self.kernel_dilation,
+                    padding='VALID')(x)
+
+        a, g = jnp.split(x, 2, axis=-1)
+        x = nn.sigmoid(g) * jnp.tanh(a)
+        return x
