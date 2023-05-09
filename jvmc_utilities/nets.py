@@ -62,20 +62,6 @@ class POVMCNN(nn.Module):
 
         return x[0]
 
-    def sym_cell(self, x):
-        if self.orbit is None:
-            return self.cnn_cell(x)
-        else:
-            inShape = x.shape
-            x = jax.vmap(lambda o, s: jnp.dot(o, s.ravel()).reshape(inShape), in_axes=(0, None))(self.orbit.orbit, x)
-
-            def evaluate(x):
-                return self.cnn_cell(x)
-
-            res = jnp.mean(jax.vmap(evaluate)(x), axis=0)
-
-            return res
-
     def sample(self, batchSize, key):
         def generate_sample(key):
             _tmpkeys = jax.random.split(key, self.L)
