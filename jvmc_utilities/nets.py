@@ -160,14 +160,35 @@ class POVMCNNGated(nn.Module):
         return x[0]
 
     def sample(self, batchSize, key):
+        """
+        This implementation is inspired by 'Fast Generation for Convolutional Autoregressive Models' (arXiv:1704.06001).
+        """
         def generate_sample(key):
             _tmpkeys = jax.random.split(key, self.L)
             conf = jnp.zeros(self.L, dtype=np.int64)
-            conf_oh = jax.nn.one_hot(conf, self.inputDim)
+
+            # This list caches the input to the i-th cnn layer
+            cache = [jnp.zeros(receptive_field) for receptive_field in
+                     [(2, 4) if i == 0 else
+                      ((2, self.features[i - 1]) if i == self.depth - 1
+                       else (2**i + 1, self.features[i - 1]))
+                      for i in range(self.depth)]]
             for idx in range(self.L):
-                logprobs = jax.nn.log_softmax(self.cnn_cell(conf_oh)[idx].transpose()).transpose()
-                conf = conf.at[idx].set(jax.random.categorical(_tmpkeys[idx], logprobs))
-                conf_oh = jax.nn.one_hot(conf, self.inputDim)
+                for i in range(self.depth - 1):
+                    x = jnp.copy(cache[i])
+                    x = self.cells[i](x)
+
+                    cache[i+1] = jnp.roll(cache[i+1], -1, axis=0)
+                    cache[i+1] = cache[i+1].at[-1].set(x[0])
+
+                x = jnp.copy(cache[self.depth - 1])
+                x = self.lastcell(x)
+
+                new_value = jax.random.categorical(_tmpkeys[idx], nn.log_softmax(x[0].transpose()).transpose())
+                conf = conf.at[idx].set(new_value)
+                cache[0] = jnp.roll(cache[0], -1, axis=0)
+                cache[0] = cache[0].at[-1].set(nn.one_hot(new_value, self.inputDim))
+
             return conf
 
         keys = jax.random.split(key, batchSize+1)
