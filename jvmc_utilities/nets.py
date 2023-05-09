@@ -120,6 +120,12 @@ class POVMCNNGated(nn.Module):
     orbit: LatticeSymmetry = None
     logProbFactor: float = 1  # 1 for POVMs and 0.5 for pure wave functions
 
+    def setup(self) -> None:
+        self.cells = [GatedCNNCell(features=2*self.features[i], kernel_size=self.kernel_size,
+                                   kernel_dilation=self.kernel_dilation*2**i)
+                      for i in range(self.depth - 1)]
+        self.lastcell = CNNCell(features=4, kernel_size=self.kernel_size, kernel_dilation=1, actFun=self.actFun)
+
     def __call__(self, x):
         def evaluate(x):
             x_oh = jax.nn.one_hot(x, self.inputDim)
@@ -144,19 +150,12 @@ class POVMCNNGated(nn.Module):
             pad = 2 if i == 0 else 2**i
             x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
 
-            x = nn.Conv(features=2*self.features[i], kernel_size=self.kernel_size,
-                        kernel_dilation=2**i*self.kernel_dilation,
-                        padding='VALID')(x)
-
-            a, g = jnp.split(x, 2, axis=-1)
-            x = nn.sigmoid(g) * jnp.tanh(a)
+            x = self.cells[i](x)
 
         pad = 2 if self.depth == 0 else 1
         x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
 
-        x = nn.Conv(features=4, kernel_size=self.kernel_size, kernel_dilation=1, padding='VALID')(x)
-
-        x = self.actFun(x)
+        x = self.lastcell(x)
 
         return x[0]
 
