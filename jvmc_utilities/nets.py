@@ -125,16 +125,16 @@ class POVMCNNGated(nn.Module):
             x_oh = jax.nn.one_hot(x, self.inputDim)
             return jnp.sum(jax.nn.log_softmax(self.cnn_cell(x_oh)) * x_oh)
 
-        if self.orbit is None:
-            # No symmetry case
-            return evaluate(x)
-        else:
+        if self.orbit is not None:
             # Symmetry case
             x = jax.vmap(lambda o, s: jnp.dot(o, s), in_axes=(0, None))(self.orbit.orbit, x)
 
             res = jnp.mean(jnp.exp(jax.vmap(evaluate)(x) / self.logProbFactor), axis=0)
 
             return self.logProbFactor * jnp.log(res)
+        else:
+            # No symmetry case
+            return evaluate(x)
 
     @nn.compact
     def cnn_cell(self, x):
