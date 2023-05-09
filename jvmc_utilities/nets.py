@@ -174,3 +174,18 @@ class POVMCNNGated(nn.Module):
             configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s), in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
 
         return configs
+
+
+class CNNCell(nn.Module):
+
+    features: int = 8
+    kernel_size: int = (2,)
+    kernel_dilation: int = 1
+    actFun: callable = nn.elu
+
+    @nn.compact
+    def __call__(self, x):
+        x = nn.Conv(features=self.features, kernel_size=self.kernel_size, kernel_dilation=self.kernel_dilation,
+                    padding='VALID')(x)
+        x = self.actFun(x)
+        return x
