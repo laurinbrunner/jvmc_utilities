@@ -23,6 +23,12 @@ class POVMCNN(nn.Module):
     orbit: LatticeSymmetry = None
     logProbFactor: float = 1  # 1 for POVMs and 0.5 for pure wave functions
 
+    def setup(self) -> None:
+        self.cells = [CNNCell(features=self.features[i] if i != self.depth - 1 else 4, kernel_size=self.kernel_size,
+                              kernel_dilation=self.kernel_dilation*2**i if i != self.depth - 1 else 1,
+                              actFun=self.actFun)
+                      for i in range(self.depth)]
+
     def __call__(self, x):
         def evaluate(x):
             x_oh = jax.nn.one_hot(x, self.inputDim)
@@ -47,18 +53,12 @@ class POVMCNN(nn.Module):
             pad = 2 if i == 0 else 2**i
             x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
 
-            x = nn.Conv(features=self.features[i], kernel_size=self.kernel_size,
-                        kernel_dilation=2**i*self.kernel_dilation,
-                        padding='VALID')(x)
-
-            x = self.actFun(x)
+            x = self.cells[i](x)
 
         pad = 2 if self.depth == 0 else 1
         x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
 
-        x = nn.Conv(features=4, kernel_size=self.kernel_size, kernel_dilation=1, padding='VALID')(x)
-
-        x = self.actFun(x)
+        x = self.cells[-1](x)
 
         return x[0]
 
