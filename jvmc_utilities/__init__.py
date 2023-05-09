@@ -4,6 +4,7 @@ from .time_evolve import Initializer, copy_state
 from . import nets
 from . import plotting
 from . import stepper
+from . import symmetry
 
 try:
     from ._version import __version__
