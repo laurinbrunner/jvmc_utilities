@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from flax import linen as nn
+from jVMC.util.symmetries import LatticeSymmetry
 
 
 class POVMCNN(nn.Module):
@@ -183,27 +184,84 @@ class DeepNADE(nn.Module):
     inputDim: int = 4
     depth: int = 2
     actFun: callable = nn.elu
+    orbit: LatticeSymmetry = None
+    logProbFactor: float = 1.  # 1 for POVMs and 0.5 for pure wave functions
+
+    def setup(self) -> None:
+        self.deep_layers = [[nn.Dense(features=self.hiddenSize, use_bias=True if (i == 0 and _ == 0) else False)
+                             for i in range(self.depth)] for _ in range(self.L)]
+        self.last_layer = [nn.Dense(features=4, use_bias=True) for _ in range(self.L)]
 
     def __call__(self, x):
-        x = nn.one_hot(x, self.inputDim)
-        probs = nn.log_softmax(self.nade_cell(x))
+        def evaluate(x):
+            x_oh = nn.one_hot(x, self.inputDim)
+            return jnp.sum(nn.log_softmax(self.nade_cell(x_oh)) * x_oh)
 
-        return jnp.sum(probs * x, dtype=np.float64)
+        if self.orbit is not None:
+            # Symmetry case
+            x = jax.vmap(lambda o, s: jnp.dot(o, s), in_axes=(0, None))(self.orbit.orbit, x)
+            res = jnp.mean(jnp.exp(jax.vmap(evaluate)(x) / self.logProbFactor), axis=0)
+
+            return self.logProbFactor * jnp.log(res)
+        else:
+            # No symmetry case
+            return evaluate(x)
 
     @nn.compact
     def nade_cell(self, x):
-        pass
+        p = jnp.zeros_like(x, dtype=np.float32)
+        x = x[:-1].reshape(1, -1, self.inputDim)
+
+        x = jnp.pad(x, ((0, 0), (1, 0), (0, 0)))
+        a = jnp.zeros((self.depth, self.hiddenSize))
+        for idx in range(self.L):
+            da = x[0, idx]
+            for i in range(self.depth):
+                if i == 0:
+                    da = self.deep_layers[idx][i](da)
+                else:
+                    da = self.deep_layers[idx][i](self.actFun(da))
+                da += a[i]
+                a = a.at[i].set(da)
+
+            k = self.last_layer[idx](da)
+            k = self.actFun(k)
+            p = p.at[idx].set(k)
+
+        return p
 
     def sample(self, batchSize, key):
         def generate_sample(key):
             _tmpkeys = jax.random.split(key, self.L)
-            conf = jnp.zeros(self.L, dtype=np.int64)
-            conf_oh = jax.nn.one_hot(conf, self.inputDim)
+
+            conf = jnp.zeros(self.L, dtype=int)
+            a = jnp.zeros((self.depth, self.hiddenSize))
+            previous_site = jnp.zeros(self.inputDim)
             for idx in range(self.L):
-                logprobs = jax.nn.log_softmax(self.nade_cell(conf_oh)[idx].transpose()).transpose()
-                conf = conf.at[idx].set(jax.random.categorical(_tmpkeys[idx], logprobs))
-                conf_oh = jax.nn.one_hot(conf, self.inputDim)
+                da = previous_site
+                for i in range(self.depth):
+                    if i == 0:
+                        da = self.deep_layers[idx][i](da)
+                    else:
+                        da = self.deep_layers[idx][i](self.actFun(da))
+                    da += a[i]
+                    a = a.at[i].set(da)
+
+                k = self.actFun(self.last_layer[idx](da))
+
+                logprobs = nn.log_softmax(k.transpose()).transpose()
+                new_site = jax.random.categorical(_tmpkeys[idx], logprobs)
+                conf = conf.at[idx].set(new_site)
+                previous_site = nn.one_hot(new_site, self.inputDim)
+
             return conf
 
-        keys = jax.random.split(key, batchSize)
-        return jax.vmap(generate_sample)(keys)
+        keys = jax.random.split(key, batchSize + 1)
+        configs = jax.vmap(generate_sample)(keys[:-1])
+
+        if self.orbit is not None:
+            orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
+            configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s),
+                               in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
+
+        return configs
