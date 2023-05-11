@@ -97,7 +97,8 @@ class POVMCNN(nn.Module):
 
         if self.orbit is not None:
             orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
-            configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s), in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
+            configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s),
+                               in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
 
         return configs
 
