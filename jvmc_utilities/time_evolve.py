@@ -405,6 +405,16 @@ class TimeEvolver:
             for i in range(L):
                 for j in range(L):
                     writedict[f"m_corr/{i},{j}"] = results["m_corr"][i, j]
+        if "N_i" in results.keys():
+            system_L = results["N_i"].shape[0] // 2
+            for l in range(system_L):
+                writedict[f"N_l/{l}_up"] = results["N_i"][2*l]
+                writedict[f"N_l/{l}_down"] = results["N_i"][2*l+1]
+                writedict[f"M_l/{l}"] = results["N_i"][2*l] - results["N_i"][2*l+1]
+                if self.measurer.mc_errors:
+                    writedict[f"N_l_MC_error/{l}_up"] = results["N_i_MC_error"][2*l]
+                    writedict[f"N_l_MC_error/{l}_down"] = results["N_i_MC_error"][2*l+1]
+                    writedict[f"M_l_MC_error/{l}"] = results["N_i_MC_error"][2*l] - results["N_i_MC_error"][2*l+1]
 
         self.writer.write_scalars(self.write_index, {"dt": dt, "t": t, "tdvp_Error": tdvp_errs[0],
                                                      "tdvp_Residual": tdvp_errs[1],
