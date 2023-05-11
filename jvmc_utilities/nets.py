@@ -207,7 +207,6 @@ class DeepNADE(nn.Module):
             # No symmetry case
             return evaluate(x)
 
-    @nn.compact
     def nade_cell(self, x):
         p = jnp.zeros_like(x, dtype=np.float32)
         x = x[:-1].reshape(1, -1, self.inputDim)
