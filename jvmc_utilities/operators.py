@@ -94,6 +94,7 @@ def aqi_model_operators(povm: jvmcop.POVM) -> None:
     """
     M_2Body, T_inv_2Body = higher_order_M_T_inv(2, povm.M, povm.T_inv)
     M_3Body, T_inv_3Body = higher_order_M_T_inv(3, povm.M, povm.T_inv)
+    M_4Body, T_inv_4Body = higher_order_M_T_inv(4, povm.M, povm.T_inv)
 
     sigmas = jvmcop.get_paulis()
 
@@ -105,6 +106,9 @@ def aqi_model_operators(povm: jvmcop.POVM) -> None:
     spin_flip_Z = jnp.kron(jnp.kron(sz_plus, sz_minus), sigmas[2])
     inv_spin_flip = jnp.kron(sz_minus, sz_plus)
     inv_spin_flip_Z = jnp.kron(jnp.kron(sz_minus, sz_plus), sigmas[2])
+    restricted_jump = jnp.kron(jnp.kron(sz_plus, jnp.eye(2) - sigmas[2]), sz_minus) / 2
+    conditional_cluster_pmnn = jnp.kron(jnp.kron(jnp.kron(sz_plus, sz_minus), jnp.eye(2) + sigmas[2]),
+                                        jnp.eye(2) + sigmas[2]) / 4
 
     if "spin_flip_uni" not in povm.operators.keys():
         povm.add_unitary("spin_flip_uni", jvmcop.matrix_to_povm(spin_flip, M_2Body, T_inv_2Body, mode="uni"))
@@ -119,3 +123,9 @@ def aqi_model_operators(povm: jvmcop.POVM) -> None:
     if "inv_spin_flip_Z_dis" not in povm.operators.keys():
         povm.add_dissipator("inv_spin_flip_Z_dis", jvmcop.matrix_to_povm(inv_spin_flip_Z, M_3Body, T_inv_3Body,
                                                                          mode="dis"))
+    if "restricted_jump_dis" not in povm.operators.keys():
+        povm.add_dissipator("restricted_jump_dis", jvmcop.matrix_to_povm(restricted_jump, M_3Body, T_inv_3Body,
+                                                                         mode="dis"))
+    if "cond_cluster_pmnn_dis" not in povm.operators.keys():
+        povm.add_dissipator("cond_cluster_pmnn_dis", jvmcop.matrix_to_povm(conditional_cluster_pmnn, M_4Body,
+                                                                           T_inv_4Body, mode="dis"))

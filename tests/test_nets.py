@@ -176,11 +176,52 @@ def test_AFFN():
 
 
 @pytest.mark.slow
-def test_symmetric_DeepNADE():
+def test_symmetric_POVMCNNGated():
     L = 4
 
     orbit = jVMC.util.symmetries.get_orbit_1d(L, translation=True, reflection=False)
 
+    cnn = jvmc_utilities.nets.POVMCNNGated(L=L, orbit=orbit)
+
+    psi = jVMC.vqs.NQS(cnn, seed=1234)
+    sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
+
+    configs = jnp.array([[[1, 0, 0, 0],
+                          [0, 1, 0, 0],
+                          [0, 0, 1, 0],
+                          [0, 0, 0, 1]]])
+
+    logprobs = psi(configs)
+
+    assert jnp.unique(jnp.round(logprobs, 12)).shape[0] == 1
+
+
+@pytest.mark.slow
+def test_symmetric_POVMCNN():
+    L = 4
+
+    orbit = jVMC.util.symmetries.get_orbit_1d(L, translation=True, reflection=False)
+   
+    cnn = jvmc_utilities.nets.POVMCNN(L=L, orbit=orbit)
+
+    psi = jVMC.vqs.NQS(cnn, seed=1234)
+    sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
+
+    configs = jnp.array([[[1, 0, 0, 0],
+                          [0, 1, 0, 0],
+                          [0, 0, 1, 0],
+                          [0, 0, 0, 1]]])
+
+    logprobs = psi(configs)
+
+    assert jnp.unique(jnp.round(logprobs, 12)).shape[0] == 1
+
+
+@pytest.mark.slow
+def test_symmetric_DeepNADE():
+    L = 4
+
+    orbit = jVMC.util.symmetries.get_orbit_1d(L, translation=True, reflection=False)
     nade = jvmc_utilities.nets.DeepNADE(L=L, orbit=orbit)
 
     psi = jVMC.vqs.NQS(nade, seed=1234)
@@ -201,7 +242,6 @@ def test_symmetric_AFFN():
     L = 4
 
     orbit = jVMC.util.symmetries.get_orbit_1d(L, translation=True, reflection=False)
-
     affn = jvmc_utilities.nets.AFFN(L=L, orbit=orbit)
 
     psi = jVMC.vqs.NQS(affn, seed=1234)
