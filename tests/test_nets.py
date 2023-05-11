@@ -173,3 +173,45 @@ def test_AFFN():
     init_rnn.initialize(measure_step=-1, steps=100)
 
     assert jnp.allclose(measurer_affn.measure()["Sz_i"], measurer_rnn.measure()["Sz_i"], atol=5E-3)
+
+
+@pytest.mark.slow
+def test_symmetric_DeepNADE():
+    L = 4
+
+    orbit = jVMC.util.symmetries.get_orbit_1d(L, translation=True, reflection=False)
+
+    nade = jvmc_utilities.nets.DeepNADE(L=L, orbit=orbit)
+
+    psi = jVMC.vqs.NQS(nade, seed=1234)
+    sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
+
+    configs = jnp.array([[[1, 0, 0, 0],
+                          [0, 1, 0, 0],
+                          [0, 0, 1, 0],
+                          [0, 0, 0, 1]]])
+
+    logprobs = psi(configs)
+
+    assert jnp.unique(jnp.round(logprobs, 12)).shape[0] == 1
+
+
+@pytest.mark.slow
+def test_symmetric_AFFN():
+    L = 4
+
+    orbit = jVMC.util.symmetries.get_orbit_1d(L, translation=True, reflection=False)
+
+    affn = jvmc_utilities.nets.AFFN(L=L, orbit=orbit)
+
+    psi = jVMC.vqs.NQS(affn, seed=1234)
+    sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
+
+    configs = jnp.array([[[1, 0, 0, 0],
+                          [0, 1, 0, 0],
+                          [0, 0, 1, 0],
+                          [0, 0, 0, 1]]])
+
+    logprobs = psi(configs)
+
+    assert jnp.unique(jnp.round(logprobs, 12)).shape[0] == 1
