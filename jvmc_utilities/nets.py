@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 from flax import linen as nn
 from jVMC.util.symmetries import LatticeSymmetry
+from jax._src.prng import PRNGKeyArray
 
 
 class POVMCNN(nn.Module):
@@ -29,8 +30,8 @@ class POVMCNN(nn.Module):
                               actFun=self.actFun)
                       for i in range(self.depth)]
 
-    def __call__(self, x):
-        def evaluate(x):
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+        def evaluate(x: jnp.ndarray):
             x_oh = jax.nn.one_hot(x, self.inputDim)
             return jnp.sum(jax.nn.log_softmax(self.cnn_cell(x_oh)) * x_oh)
 
@@ -45,7 +46,7 @@ class POVMCNN(nn.Module):
             # No symmetry case
             return evaluate(x)
 
-    def cnn_cell(self, x):
+    def cnn_cell(self, x: jnp.ndarray) -> jnp.ndarray:
         x = x[:-1].reshape(1, -1, self.inputDim)
 
         for i in range(self.depth - 1):
@@ -61,11 +62,11 @@ class POVMCNN(nn.Module):
 
         return x[0]
 
-    def sample(self, batchSize, key):
+    def sample(self, batchSize: int, key: PRNGKeyArray) -> jnp.ndarray:
         """
         This implementation is inspired by 'Fast Generation for Convolutional Autoregressive Models' (arXiv:1704.06001).
         """
-        def generate_sample(key):
+        def generate_sample(key: PRNGKeyArray) -> jnp.ndarray:
             _tmpkeys = jax.random.split(key, self.L)
             conf = jnp.zeros(self.L, dtype=np.int64)
 
@@ -125,8 +126,8 @@ class POVMCNNGated(nn.Module):
                       for i in range(self.depth - 1)]
         self.lastcell = CNNCell(features=4, kernel_size=self.kernel_size, kernel_dilation=1, actFun=self.actFun)
 
-    def __call__(self, x):
-        def evaluate(x):
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+        def evaluate(x: jnp.ndarray):
             x_oh = jax.nn.one_hot(x, self.inputDim)
             return jnp.sum(jax.nn.log_softmax(self.cnn_cell(x_oh)) * x_oh)
 
@@ -141,7 +142,7 @@ class POVMCNNGated(nn.Module):
             # No symmetry case
             return evaluate(x)
 
-    def cnn_cell(self, x):
+    def cnn_cell(self, x: jnp.ndarray) -> jnp.ndarray:
         x = x[:-1].reshape(1, -1, self.inputDim)
 
         for i in range(self.depth - 1):
@@ -157,11 +158,11 @@ class POVMCNNGated(nn.Module):
 
         return x[0]
 
-    def sample(self, batchSize, key):
+    def sample(self, batchSize: int, key: PRNGKeyArray) -> jnp.ndarray:
         """
         This implementation is inspired by 'Fast Generation for Convolutional Autoregressive Models' (arXiv:1704.06001).
         """
-        def generate_sample(key):
+        def generate_sample(key: PRNGKeyArray) -> jnp.ndarray:
             _tmpkeys = jax.random.split(key, self.L)
             conf = jnp.zeros(self.L, dtype=np.int64)
 
@@ -221,8 +222,8 @@ class AFFN(nn.Module):
                                        use_bias=True if i == 0 else False)
                              for i in range(self.L)] for _ in range(self.depth)]
 
-    def __call__(self, x):
-        def evaluate(x):
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+        def evaluate(x: jnp.ndarray) -> jnp.ndarray:
             x_oh = nn.one_hot(x, self.inputDim)
             return jnp.sum(nn.log_softmax(self.ffn_cell(x_oh)) * x_oh)
 
@@ -236,7 +237,7 @@ class AFFN(nn.Module):
             # No symmetry case
             return evaluate(x)
 
-    def ffn_cell(self, x):
+    def ffn_cell(self, x: jnp.ndarray) -> jnp.ndarray:
         x = x[:-1].reshape(1, -1, self.inputDim)
 
         h = [jnp.zeros((self.L, 4 if _ == self.depth - 1 else self.hiddenSize)) for _ in range(self.depth)]
@@ -251,8 +252,8 @@ class AFFN(nn.Module):
 
         return self.actFun(h[-1])
 
-    def sample(self, batchSize, key):
-        def generate_sample(key):
+    def sample(self, batchSize: int, key: PRNGKeyArray) -> jnp.ndarray:
+        def generate_sample(key: PRNGKeyArray) -> jnp.ndarray:
             _tmpkeys = jax.random.split(key, self.L)
             conf = jnp.zeros(self.L, dtype=int)
 
@@ -303,8 +304,8 @@ class DeepNADE(nn.Module):
                              for i in range(self.depth)] for _ in range(self.L)]
         self.last_layer = [nn.Dense(features=4, use_bias=True) for _ in range(self.L)]
 
-    def __call__(self, x):
-        def evaluate(x):
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+        def evaluate(x: jnp.ndarray) -> jnp.ndarray:
             x_oh = nn.one_hot(x, self.inputDim)
             return jnp.sum(nn.log_softmax(self.nade_cell(x_oh)) * x_oh)
 
@@ -318,7 +319,7 @@ class DeepNADE(nn.Module):
             # No symmetry case
             return evaluate(x)
 
-    def nade_cell(self, x):
+    def nade_cell(self, x: jnp.ndarray) -> jnp.ndarray:
         p = jnp.zeros_like(x, dtype=np.float32)
         x = x[:-1].reshape(1, -1, self.inputDim)
 
@@ -340,8 +341,8 @@ class DeepNADE(nn.Module):
 
         return p
 
-    def sample(self, batchSize, key):
-        def generate_sample(key):
+    def sample(self, batchSize: int, key: PRNGKeyArray) -> jnp.ndarray:
+        def generate_sample(key: PRNGKeyArray) -> jnp.ndarray:
             _tmpkeys = jax.random.split(key, self.L)
 
             conf = jnp.zeros(self.L, dtype=int)
@@ -385,7 +386,7 @@ class CNNCell(nn.Module):
     actFun: callable = nn.elu
 
     @nn.compact
-    def __call__(self, x):
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         x = nn.Conv(features=self.features, kernel_size=self.kernel_size, kernel_dilation=self.kernel_dilation,
                     padding='VALID')(x)
         x = self.actFun(x)
@@ -399,7 +400,7 @@ class GatedCNNCell(nn.Module):
     kernel_dilation: int = 1
 
     @nn.compact
-    def __call__(self, x):
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         x = nn.Conv(features=self.features, kernel_size=self.kernel_size, kernel_dilation=self.kernel_dilation,
                     padding='VALID')(x)
 
