@@ -12,6 +12,16 @@ class POVMCNN(nn.Module):
 
     This implementation is inspired by 'WaveNet: A Generative Model for Raw Audio' by van den Oord et. al.
     (arXiv:1609.03499).
+
+    :param L: system size
+    :param kernel_size: size of kernel for convolution
+    :param kernel_dilation: dilation of the kernel for convolution
+    :param features: number of hidden units
+    :param inputDim: dimension of the input (4 for POVMs and 2 for spin 1/2)
+    :param depth: number of NADE layers
+    :param actFun: activation function to be used at the end of every layer
+    :param orbit: LatticeSymmetry object that encodes all symmetry transformations applicable to the system
+    :param logProbFactor: exponent of the probability (1 for POVMs and 0.5 for pure wave functions)
     """
 
     L: int = 4
@@ -109,6 +119,16 @@ class POVMCNNGated(nn.Module):
 
     This implementation is inspired by 'WaveNet: A Generative Model for Raw Audio' by van den Oord et. al.
     (arXiv:1609.03499).
+
+    :param L: system size
+    :param kernel_size: size of kernel for convolution
+    :param kernel_dilation: dilation of the kernel for convolution
+    :param features: number of hidden units
+    :param inputDim: dimension of the input (4 for POVMs and 2 for spin 1/2)
+    :param depth: number of NADE layers
+    :param actFun: activation function to be used at the end of every layer
+    :param orbit: LatticeSymmetry object that encodes all symmetry transformations applicable to the system
+    :param logProbFactor: exponent of the probability (1 for POVMs and 0.5 for pure wave functions)
     """
 
     L: int = 4
@@ -208,6 +228,14 @@ class AFFN(nn.Module):
 
     This implementation is inspired by 'Solving Statistical Mechanics Using Variational Autoregressive Networks'
     DOI: 10.1103/PhysRevLett.122.080602
+
+    :param L: system size
+    :param hiddenSize: number of hidden units per layer
+    :param inputDim: dimension of the input (4 for POVMs and 2 for spin 1/2)
+    :param depth: number of FFN layers
+    :param actFun: activation function to be used at the end of every layer
+    :param orbit: LatticeSymmetry object that encodes all symmetry transformations applicable to the system
+    :param logProbFactor: exponent of the probability (1 for POVMs and 0.5 for pure wave functions)
     """
 
     L: int = 4
@@ -290,6 +318,14 @@ class DeepNADE(nn.Module):
     Implementation of a deep Neural Autoregressive Distribution Estimation model.
 
     This implementation is inspired by 'Neural Autoregressive Distribution Estimation' (arXiv:1605.02226).
+
+    :param L: system size
+    :param hiddenSize: number of hidden units per layer
+    :param inputDim: dimension of the input (4 for POVMs and 2 for spin 1/2)
+    :param depth: number of NADE layers
+    :param actFun: activation function to be used at the end of every layer
+    :param orbit: LatticeSymmetry object that encodes all symmetry transformations applicable to the system
+    :param logProbFactor: exponent of the probability (1 for POVMs and 0.5 for pure wave functions)
     """
 
     L: int = 4
@@ -380,6 +416,14 @@ class DeepNADE(nn.Module):
 
 
 class CNNCell(nn.Module):
+    """
+    Single layer of a CNN.
+
+    :param features: number of hidden units
+    :param kernel_size: size of kernel for convolution
+    :param kernel_dilation: dilation of the kernel for convolution
+    :param actFun: activation function acting on the output after the convolution
+    """
 
     features: int = 8
     kernel_size: int = (2,)
@@ -395,6 +439,13 @@ class CNNCell(nn.Module):
 
 
 class GatedCNNCell(nn.Module):
+    """
+    Single layer of a gated CNN.
+
+    :param features: number of hidden units
+    :param kernel_size: size of kernel for convolution
+    :param kernel_dilation: dilation of the kernel for convolution
+    """
 
     features: int = 8
     kernel_size: int = (2,)
