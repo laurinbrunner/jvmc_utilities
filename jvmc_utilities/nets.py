@@ -139,37 +139,74 @@ class AFFN(nn.Module):
     inputDim: int = 4
     depth: int = 2
     actFun: callable = nn.elu
+    orbit: LatticeSymmetry = None
+    logProbFactor: float = 1.  # 1 for POVMs and 0.5 for pure wave functions
+
+    def setup(self) -> None:
+        self.dense_layers = [[nn.Dense(features=(self.L - i)*self.hiddenSize if _ != self.depth - 1 else (self.L - i)*4,
+                                       use_bias=True if i == 0 else False)
+                             for i in range(self.L)] for _ in range(self.depth)]
 
     def __call__(self, x):
-        x = nn.one_hot(x, self.inputDim)
-        probs = nn.log_softmax(self.fnn_cell(x))
+        def evaluate(x):
+            x_oh = nn.one_hot(x, self.inputDim)
+            return jnp.sum(nn.log_softmax(self.ffn_cell(x_oh)) * x_oh)
 
-        return jnp.sum(probs * x, dtype=np.float64)
+        if self.orbit is not None:
+            # Symmetry case
+            x = jax.vmap(lambda o, s: jnp.dot(o, s), in_axes=(0, None))(self.orbit.orbit, x)
+            res = jnp.mean(jnp.exp(jax.vmap(evaluate)(x) / self.logProbFactor), axis=0)
 
-    @nn.compact
-    def fnn_cell(self, x):
-        mask = jnp.triu(jnp.ones((x.shape[0], self.hiddenSize)))
+            return self.logProbFactor * jnp.log(res)
+        else:
+            # No symmetry case
+            return evaluate(x)
 
-        W = nn.Dense(features=self.hiddenSize, use_bias=True)(jnp.ones_like(x))
-        W = jnp.multiply(mask, W)
+    def ffn_cell(self, x):
+        x = x[:-1].reshape(1, -1, self.inputDim)
 
-        x = jnp.dot(W, x)
+        h = [jnp.zeros((self.L, 4 if _ == self.depth - 1 else self.hiddenSize)) for _ in range(self.depth)]
+        x = jnp.pad(x, ((0, 0), (1, 0), (0, 0)))
+        for idx in range(self.L):
+            a = x[0, idx]
+            for i in range(self.depth):
+                a = self.dense_layers[i][idx](a)
+                a = a.reshape(self.L - idx, 4 if i == self.depth - 1 else self.hiddenSize)
+                h[i] = h[i].at[idx:].set(h[i][idx:] + a)
+                a = self.actFun(h[i][idx])
 
-        return self.actFun(x)
+        return self.actFun(h[-1])
 
     def sample(self, batchSize, key):
         def generate_sample(key):
             _tmpkeys = jax.random.split(key, self.L)
-            conf = jnp.zeros(self.L, dtype=np.int64)
-            conf_oh = jax.nn.one_hot(conf, self.inputDim)
+            conf = jnp.zeros(self.L, dtype=int)
+
+            h = [jnp.zeros((self.L, 4 if _ == self.depth - 1 else self.hiddenSize)) for _ in range(self.depth)]
+            a = jnp.zeros(self.inputDim)
             for idx in range(self.L):
-                logprobs = jax.nn.log_softmax(self.fnn_cell(conf_oh)[idx].transpose()).transpose()
-                conf = conf.at[idx].set(jax.random.categorical(_tmpkeys[idx], logprobs))
-                conf_oh = jax.nn.one_hot(conf, self.inputDim)
+                for i in range(self.depth):
+                    a = self.dense_layers[i][idx](a)
+                    a = a.reshape(self.L - idx, 4 if i == self.depth - 1 else self.hiddenSize)
+                    h[i] = h[i].at[idx:].set(h[i][idx:] + a)
+                    a = self.actFun(h[i][idx])
+
+                logprobs = jax.nn.log_softmax(a.transpose()).transpose()
+                new_site = jax.random.categorical(_tmpkeys[idx], logprobs)
+                conf = conf.at[idx].set(new_site)
+                a = nn.one_hot(new_site, self.inputDim)
+
             return conf
 
-        keys = jax.random.split(key, batchSize)
-        return jax.vmap(generate_sample)(keys)
+        keys = jax.random.split(key, batchSize + 1)
+        configs = jax.vmap(generate_sample)(keys[:-1])
+
+        if self.orbit is not None:
+            orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
+            configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s),
+                               in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
+
+        return configs
 
 
 class DeepNADE(nn.Module):
