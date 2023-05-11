@@ -20,7 +20,7 @@ class BulirschStoer:
     ) -> None:
         self.kmax = kmax
         self.kmin = kmin
-        self.substeps = 2 * (np.arange(self.kmax, dtype=int) + 1)
+        self.substeps = 2 * (np.arange(self.kmax+1, dtype=int) + 1)
         self.dt = timeStep
         self.atol = atol
         self.rtol = rtol
@@ -33,7 +33,7 @@ class BulirschStoer:
         self.compiled_midpoints = {n_k: lambda t, f, y, step_size, **rhsArgs:
                                              self._midpoint(t, f, y, step_size, n_k, **rhsArgs)
                                    for n_k in self.substeps}
-        self.A_k = np.array([np.sum(self.substeps[:k]) + 1 for k in range(self.kmax)])
+        self.A_k = np.array([np.sum(self.substeps[:k]) + 1 for k in range(self.kmax + 1)])
         self.__k_target = self.kmax - 1
 
     @property
