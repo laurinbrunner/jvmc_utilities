@@ -45,7 +45,6 @@ class POVMCNN(nn.Module):
             # No symmetry case
             return evaluate(x)
 
-    @nn.compact
     def cnn_cell(self, x):
         x = x[:-1].reshape(1, -1, self.inputDim)
 
@@ -142,7 +141,6 @@ class POVMCNNGated(nn.Module):
             # No symmetry case
             return evaluate(x)
 
-    @nn.compact
     def cnn_cell(self, x):
         x = x[:-1].reshape(1, -1, self.inputDim)
 
