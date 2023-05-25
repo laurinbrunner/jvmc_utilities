@@ -430,9 +430,7 @@ class TimeEvolver:
             writedict["Spectrum/time"] = spectrum
 
             self.writer.write_histograms(self.write_index, {"SNR": snr})
-            self.writer.write_histograms(jnp.floor(1E6*t), {"SNR/time": snr})
             self.writer.write_histograms(self.write_index, {"Spectrum": spectrum})
-            self.writer.write_histograms(jnp.floor(1E6*t), {"Spectrum/time": spectrum})
         except TypeError:
             pass
 
