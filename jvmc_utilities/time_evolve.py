@@ -426,11 +426,13 @@ class TimeEvolver:
             self.writer.write_scalars(self.write_index, {"SNR/mean": jnp.mean(snr),
                                                          "SNR/logmean": jnp.mean(jnp.log(snr))})
 
-            writedict["SNR/time"] = snr
-            writedict["Spectrum/time"] = spectrum
+            writedict["SNR/mean_time"] = jnp.mean(snr)
+            writedict["SNR/logmean_time"] = jnp.mean(jnp.log(snr))
 
             self.writer.write_histograms(self.write_index, {"SNR": snr})
             self.writer.write_histograms(self.write_index, {"Spectrum": spectrum})
+            self.writer.write_histograms(jnp.floor(1E6*t), {"SNR/time": snr})
+            self.writer.write_histograms(jnp.floor(1E6*t), {"Spectrum/time": spectrum})
         except TypeError:
             pass
 
