@@ -419,6 +419,23 @@ class TimeEvolver:
         self.writer.write_scalars(self.write_index, {"dt": dt, "t": t, "tdvp_Error": tdvp_errs[0],
                                                      "tdvp_Residual": tdvp_errs[1],
                                                      "tdvp_Error/integrated": self.integrated_tdvpError})
+        try:
+            snr = self.tdvpEquation.get_snr()
+            spectrum = self.tdvpEquation.get_spectrum()
+
+            self.writer.write_scalars(self.write_index, {"SNR/mean": jnp.mean(snr),
+                                                         "SNR/logmean": jnp.mean(jnp.log(snr))})
+
+            writedict["SNR/time"] = snr
+            writedict["Spectrum/time"] = spectrum
+
+            self.writer.write_histograms(self.write_index, {"SNR": snr})
+            self.writer.write_histograms(jnp.floor(1E6*t), {"SNR/time": snr})
+            self.writer.write_histograms(self.write_index, {"Spectrum": spectrum})
+            self.writer.write_histograms(jnp.floor(1E6*t), {"Spectrum/time": spectrum})
+        except TypeError:
+            pass
+
         writedict["tdvp_Error/time"] = tdvp_errs[0]
         writedict["tdvp_Residual/time"] = tdvp_errs[1]
         writedict["tdvp_Error/integrated_time"] = self.integrated_tdvpError
