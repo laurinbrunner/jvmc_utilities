@@ -53,7 +53,7 @@ class Initializer:
 
         :param steps: Number of time steps.
         """
-        warnings.warn("initialize_no_measurement method is deprecated. Using initialize(measurestep=-1) instead is "
+        warnings.warn("initialize_no_measurement method is deprecated. Using initialize(measure_step=-1) instead is "
                       "adviced.", DeprecationWarning)
         self.initialize(measure_step=-1, steps=steps)
 
