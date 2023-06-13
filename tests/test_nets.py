@@ -20,10 +20,10 @@ def test_POVMCNN():
     sampler_rnn = jVMC.sampler.ExactSampler(psi_rnn, (L,), lDim=4, logProbFactor=1)
     # sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
 
-    tdvpEquation_cnn = jVMC.util.tdvp.TDVP(sampler_cnn, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
-    tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1.,
-                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
+    tdvpEquation_cnn = jVMC.util.tdvp.TDVP(sampler_cnn, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
+                                           makeReal='real', crossValidation=False)
+    tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
+                                           makeReal='real', crossValidation=False)
 
     stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
     # stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
@@ -62,10 +62,10 @@ def test_POVMCNNGated():
     sampler_rnn = jVMC.sampler.ExactSampler(psi_rnn, (L,), lDim=4, logProbFactor=1)
     # sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
 
-    tdvpEquation_cnn = jVMC.util.tdvp.TDVP(sampler_cnn, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
-    tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1.,
-                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
+    tdvpEquation_cnn = jVMC.util.tdvp.TDVP(sampler_cnn, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
+                                           makeReal='real', crossValidation=False)
+    tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
+                                           makeReal='real', crossValidation=False)
 
     stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
     # stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
@@ -104,10 +104,10 @@ def test_DeepNade():
     sampler_rnn = jVMC.sampler.ExactSampler(psi_rnn, (L,), lDim=4, logProbFactor=1)
     # sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
 
-    tdvpEquation_nade = jVMC.util.tdvp.TDVP(sampler_nade, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
-    tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1.,
-                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
+    tdvpEquation_nade = jVMC.util.tdvp.TDVP(sampler_nade, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
+                                            makeReal='real', crossValidation=False)
+    tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
+                                           makeReal='real', crossValidation=False)
 
     stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
     # stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
