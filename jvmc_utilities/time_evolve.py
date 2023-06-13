@@ -482,6 +482,8 @@ class TimeEvolver:
             if self.tdvpEquation.crossValidation:
                 cv_errs = [self.tdvpEquation.crossValidationFactor_tdvpErr,
                            self.tdvpEquation.crossValidationFactor_residual]
+            else:
+                cv_errs = [0., 0.]
         else:
             td_errs = [0., 0.]
             cv_errs = [0., 0.]
