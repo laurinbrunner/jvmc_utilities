@@ -25,7 +25,7 @@ def setup_method():
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (2, 3)})
     init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind)
 
-    init.initialize_no_measurement()
+    init.initialize(measure_step=-1)
 
     return sampler, povm
 
