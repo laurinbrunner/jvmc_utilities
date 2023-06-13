@@ -15,7 +15,7 @@ def setup_updown():
                                   (L,), 123)
     sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
     tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
     stepper = jVMC.util.stepper.Euler(timeStep=1E-2)
     povm = jVMC.operator.POVM({"dim": "1D", "L": L})
     jvmc_utilities.operators.initialisation_operators(povm)
@@ -90,7 +90,7 @@ def test_no_measurement_with_convergence():
                                   (L,), 123)
     sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
     tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
     stepper = jVMC.util.stepper.Euler(timeStep=1E-2)
     povm = jVMC.operator.POVM({"dim": "1D", "L": L})
     jvmc_utilities.operators.initialisation_operators(povm)
@@ -166,7 +166,7 @@ def test_copy_state(setup_updown):
     lind = jVMC.operator.POVMOperator(povm)
     lind.add({"name": "downdown_dis", "strength": 1.0, "sites": (0, 1)})
     tdvpEquation = jVMC.util.tdvp.TDVP(sampler_source, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
 
     for _ in range(10):
         dp, dt = stepper.step(0, tdvpEquation, psi_source.get_parameters(), hamiltonian=lind, psi=psi_source)

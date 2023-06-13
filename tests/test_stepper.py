@@ -39,7 +39,7 @@ def test_BulirschStoer_CNN():
     sampler_cnn = jVMC.sampler.ExactSampler(psi_cnn, (L,), lDim=4, logProbFactor=1)
 
     tdvpEquation_cnn = jVMC.util.tdvp.TDVP(sampler_cnn, rhsPrefactor=-1.,
-                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
 
     init_stepper = jVMC.util.Euler(timeStep=1e-2)
     stepper = jvmc_utilities.stepper.BulirschStoer(timeStep=1e-2)

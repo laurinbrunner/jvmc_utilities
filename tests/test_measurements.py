@@ -16,7 +16,7 @@ def setup_method():
                                   (L,), 123)
     sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
     tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
     stepper = jVMC.util.stepper.Euler(timeStep=1E-2)
     povm = jVMC.operator.POVM({"dim": "1D", "L": L})
     jvmc_utilities.operators.initialisation_operators(povm)

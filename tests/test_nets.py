@@ -21,9 +21,9 @@ def test_POVMCNN():
     # sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
 
     tdvpEquation_cnn = jVMC.util.tdvp.TDVP(sampler_cnn, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
     tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1.,
-                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
 
     stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
     # stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
@@ -63,9 +63,9 @@ def test_POVMCNNGated():
     # sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
 
     tdvpEquation_cnn = jVMC.util.tdvp.TDVP(sampler_cnn, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
     tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1.,
-                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
 
     stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
     # stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
@@ -105,9 +105,9 @@ def test_DeepNade():
     # sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
 
     tdvpEquation_nade = jVMC.util.tdvp.TDVP(sampler_nade, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
     tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1.,
-                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
 
     stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
     # stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
@@ -148,9 +148,9 @@ def test_AFFN():
     # sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
 
     tdvpEquation_affn = jVMC.util.tdvp.TDVP(sampler_affn, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
     tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1.,
-                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
 
     stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
     # stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
