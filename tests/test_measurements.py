@@ -3,7 +3,7 @@ import jVMC
 import pytest
 import jax
 
-import jvmc_utilities.time_evolve
+import jvmc_utilities
 
 
 @pytest.fixture(scope='module')
