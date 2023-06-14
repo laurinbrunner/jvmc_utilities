@@ -545,7 +545,7 @@ class TimeEvolver:
                    "sampler": str(type(self.tdvpEquation.sampler)),
                    "stepper": str(type(self.stepper)),
                    "snrTol": self.tdvpEquation.snrTol,
-                   "svdTol": self.tdvpEquation.svdTol,
+                   "pinvTol": self.tdvpEquation.pinvTol,
                    "batchSize": self.psi.batchSize,
                    "jVMC_version": jVMC.__version__,
                    "jvmc_utilities_version": jvmc_utilities.__version__}
