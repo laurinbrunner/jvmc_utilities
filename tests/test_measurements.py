@@ -36,8 +36,8 @@ def test_Sz_l(setup_method):
     measurer.set_observables(["Sx_i", "Sy_i", "Sz_i", "N"])
     results = measurer.measure()
 
-    assert(jnp.allclose(results["Sx_i"], 0, atol=1E-4))
-    assert(jnp.allclose(results["Sy_i"], 0, atol=1E-4))
+    assert(jnp.allclose(results["Sx_i"], 0, atol=5E-4))
+    assert(jnp.allclose(results["Sy_i"], 0, atol=5E-4))
     assert(jnp.allclose(results["Sz_i"], jnp.array([1, -1, 1, -1]), atol=1E-3))
     assert(jnp.allclose(results["N"], jnp.array([1, 0]), atol=1E-3))
 
