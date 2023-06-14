@@ -269,10 +269,6 @@ class TimeEvolver:
         self.psi = psi
         self.tdvpEquation = tdvpEquation
         self.stepper = stepper
-        if type(stepper) == jVMC.util.Euler:
-            self.adaptive_stepper = False
-        else:
-            self.adaptive_stepper = True
 
         self.measurer = measurer
         self.writer = writer
@@ -327,12 +323,8 @@ class TimeEvolver:
         try:
             while t - times[0] < max_time:
 
-                if self.adaptive_stepper:
-                    dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
-                                               hamiltonian=lindbladian, psi=self.psi, normFunction=self.__norm_fun)
-                else:
-                    dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
-                                               hamiltonian=lindbladian, psi=self.psi)
+                dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
+                                           hamiltonian=lindbladian, psi=self.psi, normFunction=self.__norm_fun)
 
                 if jnp.any(jnp.isnan(dp)):
                     warnings.warn("TimeEvolver ran into nan-valued parameters. Aborted time evolution.",
