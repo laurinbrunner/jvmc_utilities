@@ -301,27 +301,33 @@ class TimeEvolver:
 
         self.real_times = []  # Every list in this list is for potential reruns
         self.times = jnp.array([0.])
-        self.integrated_tdvpError = 0.
-        self.integrated_cvError = 0.
         self.results = {}
-        self.meta_data = {"tdvp_errors": None, "tdvp_residuals": None, "cv_errors": None, "cv_residuals": None}
+        self.meta_data = {"tdvp_Error": None, "tdvp_Residual": None, "CV_Error": None, "CV_Residual": None,
+                          "tdvp_Error/integrated": None, "CV_Error/integrated": None, "ElocMean": None, "ElocVar": None}
+
+        # Dictionaries for current run
+        self.__reset_current_run_dicts()
+
+    def __reset_current_run_dicts(self) -> None:
+        self.current_meta_data = {"tdvp_Error": [], "tdvp_Residual": [], "CV_Error": [], "CV_Residual": [],
+                                  "ElocMean": [], "ElocVar": [], "tdvp_Error/integrated": [], "CV_Error/integrated": []}
+        self.current_results = {obs: [] for obs in self.measurer.observables}
+        self.current_times = []
+
 
     def run(self, lindbladian: jVMC.operator.POVMOperator, max_time: float, measure_step: int = 0) -> None:
 
-        results = {obs: [] for obs in self.measurer.observables}
-        times = []
         self.real_times.append([])
-        meta_data = {"tdvp_errors": [], "tdvp_residuals": [], "cv_errors": [], "cv_residuals": []}
 
-        self.__do_measurement(results, times, self.times[-1], meta_data)
+        self.__do_measurement(t=0., dt=0.)
 
-        t = times[0]
+        t = self.current_times[0]
 
         pbar = tqdm(total=100, desc="Progress", unit="%")
         bar_index = 1
         measure_counter = 0
         try:
-            while t - times[0] < max_time:
+            while t - self.current_times[0] < max_time:
 
                 dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
                                            hamiltonian=lindbladian, psi=self.psi, normFunction=self.__norm_fun)
@@ -335,13 +341,17 @@ class TimeEvolver:
                 self.psi.set_parameters(dp)
 
                 if measure_counter == measure_step:
-                    self.__do_measurement(results, times, t, meta_data)
+                    self.__do_measurement(t=t, dt=dt)
                     measure_counter = 0
                 else:
                     measure_counter += 1
 
+                # Save parameters at every step
+                if self.parameter_output_manager is not None:
+                    self.__save_parameters(t)
+
                 # update tqdm bar
-                if t - times[0] > max_time / 100 * bar_index:
+                if t - self.current_times[0] > max_time / 100 * bar_index:
                     old_bar_index = bar_index
                     bar_index = int(jnp.floor(t / max_time * 100) + 1)
                     pbar.update(bar_index - old_bar_index)
@@ -352,9 +362,9 @@ class TimeEvolver:
 
             # Make sure that measurement is done at the last step
             if measure_counter != 0:
-                self.__do_measurement(results, times, t, meta_data)
+                self.__do_measurement(t=t, dt=dt)
 
-            self.__convert_to_arrays(results, times, meta_data)
+            self.__convert_to_arrays()
 
     def __norm_fun(self, v: jnp.ndarray) -> float:
         return jnp.real(jnp.conj(jnp.transpose(v)).dot(self.tdvpEquation.S_dot(v)))
@@ -363,72 +373,61 @@ class TimeEvolver:
             self,
             results: Dict[str, List[jnp.ndarray]],
             t: float, dt: float,
-            tdvp_errs: List[float],
-            cv_errs: List[float]
+            meta_data_update: Dict[str, float]
     ) -> None:
-        writedict = {}
+        writedict_time = {}
+        writedict_index = {}
+
+        # Write standard observables
+        for obs in ["Sx_i", "Sy_i", "Sz_i", "m_corr", "Sx_i_MC_error", "Sy_i_MC_error", "Sz_i_MC_error"]:
+            try:
+                if len(results[obs].shape) == 1:
+                    writedict_time[obs[1].upper() + obs[4:]] = jnp.mean(results[obs])
+                    for i in range(results[obs].shape[0]):
+                        writedict_time[f"{obs}/{i}"] = results[obs][i]
+                elif len(results[obs].shape) == 2:
+                    for i in range(results[obs].shape[0]):
+                        for j in range(results[obs].shape[1]):
+                            writedict_time[f"{obs}/{i}_{j}"] = results[obs][i, j]
+                else:
+                    writedict_time[f"{obs}"] = results[obs]
+            except KeyError:
+                pass
+
+        # Write occupation observables
         if "N" in results.keys():
-            writedict["N"] = results["N"][0] + results["N"][1]
-            writedict["M"] = results["N"][0] - results["N"][1]
+            writedict_time["N"] = results["N"][0] + results["N"][1]
+            writedict_time["M"] = results["N"][0] - results["N"][1]
             if self.measurer.mc_errors:
-                writedict["N_MC_error"] = results["N_MC_error"][0] + results["N_MC_error"][1]
-                writedict["M_MC_error"] = results["N_MC_error"][0] - results["N_MC_error"][1]
-        if "Sx_i" in results.keys():
-            writedict["X"] = jnp.mean(results["Sx_i"])
-            for i in range(results["Sx_i"].shape[0]):
-                writedict[f"Sx_i/{i}"] = results["Sx_i"][i]
-            if self.measurer.mc_errors:
-                writedict["X_MC_error"] = jnp.mean(results["Sx_i_MC_error"])
-                for i in range(results["Sx_i_MC_error"].shape[0]):
-                    writedict[f"Sx_i_MC_error/{i}"] = results["Sx_i_MC_error"][i]
-        if "Sy_i" in results.keys():
-            writedict["Y"] = jnp.mean(results["Sy_i"])
-            for i in range(results["Sy_i"].shape[0]):
-                writedict[f"Sy_i/{i}"] = results["Sy_i"][i]
-            if self.measurer.mc_errors:
-                writedict["Y_MC_error"] = jnp.mean(results["Sy_i_MC_error"])
-                for i in range(results["Sy_i"].shape[0]):
-                    writedict[f"Sy_i_MC_error/{i}"] = results["Sy_i_MC_error"][i]
-        if "Sz_i" in results.keys():
-            writedict["Z"] = jnp.mean(results["Sz_i"])
-            for i in range(results["Sz_i"].shape[0]):
-                writedict[f"Sz_i/{i}"] = results["Sz_i"][i]
-            if self.measurer.mc_errors:
-                writedict["Z_MC_error"] = jnp.mean(results["Sz_i_MC_error"])
-                for i in range(results["Sz_i"].shape[0]):
-                    writedict[f"Sz_i_MC_error/{i}"] = results["Sz_i_MC_error"][i]
-        if "M_sq" in results.keys():
-            writedict["M_sq"] = results["M_sq"]
-        if "m_corr" in results.keys():
-            L = results["m_corr"].shape[0]
-            for i in range(L):
-                for j in range(L):
-                    writedict[f"m_corr/{i},{j}"] = results["m_corr"][i, j]
+                writedict_time["N_MC_error"] = results["N_MC_error"][0] + results["N_MC_error"][1]
+                writedict_time["M_MC_error"] = results["N_MC_error"][0] - results["N_MC_error"][1]
         if "N_i" in results.keys():
             system_L = results["N_i"].shape[0] // 2
             for l in range(system_L):
-                writedict[f"N_l/{l}_up"] = results["N_i"][2*l]
-                writedict[f"N_l/{l}_down"] = results["N_i"][2*l+1]
-                writedict[f"M_l/{l}"] = results["N_i"][2*l] - results["N_i"][2*l+1]
+                writedict_time[f"N_l/{l}_up"] = results["N_i"][2*l]
+                writedict_time[f"N_l/{l}_down"] = results["N_i"][2*l+1]
+                writedict_time[f"M_l/{l}"] = results["N_i"][2*l] - results["N_i"][2*l+1]
                 if self.measurer.mc_errors:
-                    writedict[f"N_l_MC_error/{l}_up"] = results["N_i_MC_error"][2*l]
-                    writedict[f"N_l_MC_error/{l}_down"] = results["N_i_MC_error"][2*l+1]
-                    writedict[f"M_l_MC_error/{l}"] = results["N_i_MC_error"][2*l] - results["N_i_MC_error"][2*l+1]
+                    writedict_time[f"N_l_MC_error/{l}_up"] = results["N_i_MC_error"][2*l]
+                    writedict_time[f"N_l_MC_error/{l}_down"] = results["N_i_MC_error"][2*l+1]
+                    writedict_time[f"M_l_MC_error/{l}"] = results["N_i_MC_error"][2*l] - results["N_i_MC_error"][2*l+1]
 
-        self.writer.write_scalars(self.write_index, {"dt": dt, "t": t, "tdvp_Error": tdvp_errs[0],
-                                                     "tdvp_Residual": tdvp_errs[1], "CV_Error": cv_errs[0],
-                                                     "tdvp_Error/integrated": self.integrated_tdvpError,
-                                                     "CV_Error/integrated": self.integrated_cvError,
-                                                     "CV_Residual": cv_errs[1]})
-        try:
+        # Write meta data
+        writedict_index["t"] = t
+        writedict_index["dt"] = dt
+        for key in meta_data_update.keys():
+            writedict_index[key] = meta_data_update[key]
+            writedict_time[f"{key}/time"] = meta_data_update[key]
+
+        if self.tdvpEquation.metaData is not None:
+            # This will be skipped when the TDVP.__call__ function has not been called yet
             snr = self.tdvpEquation.get_snr()
             spectrum = self.tdvpEquation.get_spectrum()
 
-            self.writer.write_scalars(self.write_index, {"SNR/mean": jnp.mean(snr),
-                                                         "SNR/logmean": jnp.mean(jnp.log(snr))})
-
-            writedict["SNR/mean_time"] = jnp.mean(snr)
-            writedict["SNR/logmean_time"] = jnp.mean(jnp.log(snr))
+            writedict_index["SNR/mean"] = jnp.mean(snr)
+            writedict_index["SNR/logmean"] = jnp.mean(jnp.log(snr))
+            writedict_time["SNR/mean_time"] = jnp.mean(snr)
+            writedict_time["SNR/logmean_time"] = jnp.mean(jnp.log(snr))
 
             self.writer.write_histograms(self.write_index, {"SNR": snr, "Spectrum": spectrum,
                                                             "logSNR": jnp.log10(jnp.abs(snr) + 1E-18),
@@ -436,98 +435,85 @@ class TimeEvolver:
             self.writer.write_histograms(jnp.floor(1E6*t), {"SNR/time": snr, "Spectrum/time": spectrum,
                                                             "logSNR/time": jnp.log10(jnp.abs(snr) + 1E-18),
                                                             "logSpectrum/time": jnp.log10(jnp.abs(spectrum) + 1E-18)})
-        except TypeError:
-            pass
-
-        writedict["tdvp_Error/time"] = tdvp_errs[0]
-        writedict["tdvp_Residual/time"] = tdvp_errs[1]
-        writedict["tdvp_Error/integrated_time"] = self.integrated_tdvpError
-        writedict["CV_Error/time"] = cv_errs[0]
-        writedict["CV_Residual/time"] = cv_errs[1]
-        writedict["CV_Error/integrated_time"] = self.integrated_cvError
-        writedict["dt/time"] = dt
 
         self.write_index += 1
-        self.writer.write_scalars(jnp.floor(1E6*t), writedict)
+        self.writer.write_scalars(self.write_index, writedict_index)
+        self.writer.write_scalars(jnp.floor(1E6*t), writedict_time)
 
-    def __do_measurement(
-            self,
-            results: Dict[str, List[jnp.ndarray]],
-            times: List[float],
-            t: float,
-            meta_data: Dict[str, List[float]]
-    ) -> None:
+    def __do_measurement(self, t: float, dt: float) -> None:
+        """
+        Measure specified observables and meta data. Afterward, write them to the tensorboard writer.
+        """
         self.real_times[-1].append(time.time())
+
+        # Measure observables
         _res = self.measurer.measure()
         for obs in self.measurer.observables:
-            results[obs].append(_res[obs])
-        times.append(t)
+            self.current_results[obs].append(_res[obs])
 
-        if len(times) == 1:
-            dt = times[-1]
-        else:
-            dt = times[-1] - times[-2]
+        self.current_times.append(t)
 
+        # Measure meta data
         if self.tdvpEquation.metaData is not None:
             # This will be skipped when the TDVP.__call__ function has not been called yet
             td_errs = self.tdvpEquation.get_residuals()
+            ElocMean = self.tdvpEquation.ElocMean0
+            ElocVar = self.tdvpEquation.ElocVar0
+            new_integrated_tdvp_error = self.current_meta_data["tdvp_Error/integrated"][-1] + dt * td_errs[0]
+            new_integrated_cv_error = self.current_meta_data["CV_Error/integrated"][-1] + dt * td_errs[0]
             if self.tdvpEquation.crossValidation:
                 cv_errs = [self.tdvpEquation.crossValidationFactor_tdvpErr,
                            self.tdvpEquation.crossValidationFactor_residual]
             else:
                 cv_errs = [0., 0.]
         else:
+            ElocMean = 0.
+            ElocVar = 0.
             td_errs = [0., 0.]
             cv_errs = [0., 0.]
+            new_integrated_tdvp_error = 0.
+            new_integrated_cv_error = 0.
 
-        self.integrated_tdvpError += dt * td_errs[0]
-        self.integrated_cvError += dt * cv_errs[0]
+        meta_data_update = {"tdvp_Error/integrated": new_integrated_tdvp_error,
+                            "CV_Error/integrated": new_integrated_cv_error,
+                            "tdvp_Error": td_errs[0],
+                            "tdvp_Residual": td_errs[1],
+                            "CV_Error": cv_errs[0],
+                            "CV_Residual": cv_errs[1],
+                            "ElocMean": ElocMean,
+                            "ElocVar": ElocVar}
 
-        meta_data["tdvp_errors"].append(td_errs[0])
-        meta_data["tdvp_residuals"].append(td_errs[1])
-        meta_data["cv_errors"].append(cv_errs[0])
-        meta_data["cv_residuals"].append(cv_errs[1])
+        for key in meta_data_update.keys():
+            self.current_meta_data[key].append(meta_data_update[key])
 
         if self.writer is not None:
-            self.__write(_res, t, dt, td_errs, cv_errs)
-        if self.parameter_output_manager is not None:
-            self.__save_parameters(t)
+            self.__write(_res, t, dt, meta_data_update)
 
-    def __convert_to_arrays(
-            self,
-            results: Dict[str, List[jnp.ndarray]],
-            times: List[float],
-            meta_data: Dict[str, List[float]]
-    ) -> None:
+    def __convert_to_arrays(self) -> None:
         """
         Converts results dictionary and times list to jnp.ndarray and sets them to the respective instance variables.
         """
         if len(self.results.keys()) == 0:
             self.results = {}
-            for obs in results.keys():
-                self.results[obs] = jnp.array(results[obs])
-            self.times = jnp.array(times)
-            self.meta_data["tdvp_errors"] = jnp.array(meta_data["tdvp_errors"])
-            self.meta_data["tdvp_residuals"] = jnp.array(meta_data["tdvp_residuals"])
-            self.meta_data["cv_errors"] = jnp.array(meta_data["cv_errors"])
-            self.meta_data["cv_residuals"] = jnp.array(meta_data["cv_residuals"])
+            for obs in self.current_results.keys():
+                self.results[obs] = jnp.array(self.current_results[obs])
+            self.times = jnp.array(self.current_times)
+            for key in self.current_meta_data.keys():
+                self.meta_data[key] = jnp.array(self.current_meta_data[key])
         else:
-            for obs in results.keys():
+            for obs in self.current_results.keys():
                 if obs in self.results.keys():
-                    self.results[obs] = jnp.concatenate([self.results[obs], jnp.array(results[obs])])
+                    self.results[obs] = jnp.concatenate([self.results[obs], jnp.array(self.current_results[obs])])
                 else:
-                    self.results[obs] = jnp.array(results[obs])
-            self.times = jnp.concatenate([self.times, jnp.array(times)])
-            self.meta_data["tdvp_errors"] = jnp.concatenate([self.meta_data["tdvp_errors"],
-                                                             jnp.array(meta_data["tdvp_errors"])])
-            self.meta_data["tdvp_residuals"] = jnp.concatenate([self.meta_data["tdvp_residuals"],
-                                                                jnp.array(meta_data["tdvp_residuals"])])
-            self.meta_data["cv_errors"] = jnp.concatenate([self.meta_data["cv_errors"],
-                                                           jnp.array(meta_data["cv_errors"])])
-            self.meta_data["cv_residuals"] = jnp.concatenate([self.meta_data["cv_residuals"],
-                                                              jnp.array(meta_data["cv_residuals"])])
+                    self.results[obs] = jnp.array(self.current_results[obs])
+            self.times = jnp.concatenate([self.times, jnp.array(self.current_times)])
+            for key in self.current_meta_data.keys():
+                self.meta_data[key] = jnp.concatenate([self.meta_data[key], jnp.array(self.current_meta_data[key])])
         self.real_times[-1] = jnp.array(self.real_times[-1])
         self.real_times[-1] = self.real_times[-1] - self.real_times[-1][0]
+
+        # Reset current run dictionaries
+        self.__reset_current_run_dicts()
 
     def __save_parameters(self, t: float) -> None:
         """
