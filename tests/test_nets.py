@@ -179,7 +179,7 @@ def test_AFFN():
 def test_symmetric_POVMCNNGated():
     L = 4
 
-    orbit = jVMC.util.symmetries.get_orbit_1d(L, translation=True, reflection=False)
+    orbit = jVMC.util.symmetries.get_orbit_1D(L, "translation")
 
     cnn = jvmc_utilities.nets.POVMCNNGated(L=L, orbit=orbit)
 
@@ -200,7 +200,7 @@ def test_symmetric_POVMCNNGated():
 def test_symmetric_POVMCNN():
     L = 4
 
-    orbit = jVMC.util.symmetries.get_orbit_1d(L, translation=True, reflection=False)
+    orbit = jVMC.util.symmetries.get_orbit_1D(L, "translation")
    
     cnn = jvmc_utilities.nets.POVMCNN(L=L, orbit=orbit)
 
@@ -221,7 +221,7 @@ def test_symmetric_POVMCNN():
 def test_symmetric_DeepNADE():
     L = 4
 
-    orbit = jVMC.util.symmetries.get_orbit_1d(L, translation=True, reflection=False)
+    orbit = jVMC.util.symmetries.get_orbit_1D(L, "translation")
     nade = jvmc_utilities.nets.DeepNADE(L=L, orbit=orbit)
 
     psi = jVMC.vqs.NQS(nade, seed=1234)
@@ -241,7 +241,7 @@ def test_symmetric_DeepNADE():
 def test_symmetric_AFFN():
     L = 4
 
-    orbit = jVMC.util.symmetries.get_orbit_1d(L, translation=True, reflection=False)
+    orbit = jVMC.util.symmetries.get_orbit_1D(L, "translation")
     affn = jvmc_utilities.nets.AFFN(L=L, orbit=orbit)
 
     psi = jVMC.vqs.NQS(affn, seed=1234)
