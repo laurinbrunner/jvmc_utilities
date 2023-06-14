@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import jVMC
 import jvmc_utilities.time_evolve
 import pytest
+from clu import metric_writers
 
 
 @pytest.fixture(scope='module')
@@ -181,3 +182,32 @@ def test_copy_state(setup_updown):
     assert not jnp.allclose(res_source["Sz_i"], res_target["Sz_i"])
     assert not jnp.allclose(psi_source.get_parameters(), psi_target.get_parameters())
     assert jnp.allclose(res_target_old["Sz_i"], res_target["Sz_i"])
+
+
+def test_writer(tmp_path):
+    L = 2
+    net = jvmc_utilities.nets.DeepNADE(L=L, depth=1, hiddenSize=3, inputDim=4, logProbFactor=1)
+    psi = jVMC.vqs.NQS(net, seed=1234, batchSize=5000)
+    sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
+    tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
+                                       makeReal='real', crossValidation=False)
+    stepper = jVMC.util.stepper.Euler(timeStep=1E-2)
+    povm = jVMC.operator.POVM({"dim": "1D", "L": L})
+    lind = jVMC.operator.POVMOperator(povm)
+    lind.add({"name": "decayup", "strength": 5.0, "sites": (0,)})
+    lind.add({"name": "decayup", "strength": 5.0, "sites": (1,)})
+
+    measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
+    measurer.set_observables(["Sz_i", "N"])
+    writerfile = tmp_path / "tensorboard_test"
+    print(str(writerfile))
+    writer = metric_writers.summary_writer.SummaryWriter(str(tmp_path / "tensorboard_test"))
+    time_evolver = jvmc_utilities.time_evolve.TimeEvolver(psi, tdvpEquation, stepper, measurer, writer=writer,
+                                                          additional_hparams={"test": 0},
+                                                          parameter_file=tmp_path / "test_parameter")
+
+    time_evolver.run(lind, 0.1001)
+
+    assert (tmp_path / "test_parameter").exists()
+    assert "ElocMean" in time_evolver.meta_data.keys()
+    assert time_evolver.times.shape == (12,)
