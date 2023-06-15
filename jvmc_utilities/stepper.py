@@ -14,7 +14,7 @@ class BulirschStoer:
             self,
             timeStep: float = 1e-2,
             kmax: int = 8,
-            kmin: int = 1,
+            kmin: int = 2,
             atol: float = 1e-5,
             rtol: float = 1e-7,
             maxStep: float = 0.1,
