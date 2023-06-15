@@ -50,8 +50,7 @@ class BulirschStoer:
 
     @k_target.setter
     def k_target(self, new_k: int) -> None:
-        if self.kmin <= new_k <= self.kmax:
-            self.__k_target = new_k
+        self.__k_target = max(self.kmin, min(self.kmax, new_k))
 
     def _midpoint(
             self,
