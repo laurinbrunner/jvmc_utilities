@@ -1,6 +1,7 @@
 import numpy as np
 import jax.numpy
 from typing import Tuple
+import warnings
 
 
 class BulirschStoer:
@@ -16,7 +17,8 @@ class BulirschStoer:
             kmin: int = 1,
             atol: float = 1e-5,
             rtol: float = 1e-7,
-            maxStep: float = 0.1
+            maxStep: float = 0.1,
+            max_iterations: int = 100
     ) -> None:
         self.kmax = kmax
         self.kmin = kmin
@@ -25,6 +27,7 @@ class BulirschStoer:
         self.atol = atol
         self.rtol = rtol
         self.maxStep = maxStep
+        self.max_iterations = max_iterations
 
         # S1 and S2 are safety factors smaller than one
         self.S1 = 0.94
@@ -84,7 +87,9 @@ class BulirschStoer:
             scale = self.atol + jax.numpy.max(jax.numpy.array([normFunction(y), normFunction(T[k, k])])) * self.rtol
             return normFunction(T[k, k] - T[k, k-1]) / scale
 
-        while True:
+        iterations = 0
+        while iterations < self.max_iterations:
+            iterations += 1
             T_matrix = jax.numpy.zeros((self.k_target + 1, self.k_target + 1, y.size), dtype=y.dtype)
             T_matrix = T_matrix.at[0, 0].set(self._midpoint(t, f, y, dt, self.substeps[0], **rhsArgs))
 
@@ -184,5 +189,9 @@ class BulirschStoer:
             else:
                 dt = min(H_kp1, self.maxStep)
                 continue
+
+        if iterations == self.max_iterations:
+            y_new = T_matrix[self.k_target-1, self.k_target-1]
+            warnings.warn("Maximum number of iterations reached. Result may be inaccurate.", Warning)
 
         return y_new, dt
