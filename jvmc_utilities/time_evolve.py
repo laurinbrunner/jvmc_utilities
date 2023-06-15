@@ -351,6 +351,7 @@ class TimeEvolver:
                     self.__save_parameters(t)
 
                 # update tqdm bar
+                pbar.set_postfix({"t": t})
                 if t - self.current_times[0] > max_time / 100 * bar_index:
                     old_bar_index = bar_index
                     bar_index = int(jnp.floor(t / max_time * 100) + 1)
