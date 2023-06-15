@@ -17,6 +17,8 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.8"]
+        mpi:
+          - openmpi
 
     steps:
     - uses: actions/checkout@v3
