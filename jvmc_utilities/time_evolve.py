@@ -460,8 +460,13 @@ class TimeEvolver:
             td_errs = self.tdvpEquation.get_residuals()
             ElocMean = self.tdvpEquation.ElocMean0
             ElocVar = self.tdvpEquation.ElocVar0
-            new_integrated_tdvp_error = self.current_meta_data["tdvp_Error/integrated"][-1] + dt * td_errs[0]
-            new_integrated_cv_error = self.current_meta_data["CV_Error/integrated"][-1] + dt * td_errs[0]
+            if len(self.current_meta_data["tdvp_Error/integrated"]) != 0:
+                new_integrated_tdvp_error = self.current_meta_data["tdvp_Error/integrated"][-1] + dt * td_errs[0]
+                new_integrated_cv_error = self.current_meta_data["CV_Error/integrated"][-1] + dt * td_errs[0]
+            else:
+                new_integrated_tdvp_error = dt * td_errs[0]
+                new_integrated_cv_error = dt * td_errs[0]
+
             if self.tdvpEquation.crossValidation:
                 cv_errs = [self.tdvpEquation.crossValidationFactor_tdvpErr,
                            self.tdvpEquation.crossValidationFactor_residual]
