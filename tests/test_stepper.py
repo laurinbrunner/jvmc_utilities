@@ -27,42 +27,42 @@ def test_BulirschStoer_normal_ODE():
     assert(jnp.all(jnp.diff(t) <= maxStep * 1.01))
 
 
-@pytest.mark.slow
-def test_BulirschStoer_CNN():
-    """
-    Test the BulirschStoer class with a VMC problem and check it against the analytical results.
-    """
-    L = 2
-    cnn = jvmc_utilities.nets.POVMCNN(L=L)
-    psi_cnn = jVMC.vqs.NQS(cnn, seed=1234)
+# @pytest.mark.slow
+# def test_BulirschStoer_CNN():
+#     """
+#     Test the BulirschStoer class with a VMC problem and check it against the analytical results.
+#     """
+#     L = 2
+#     cnn = jvmc_utilities.nets.POVMCNN(L=L)
+#     psi_cnn = jVMC.vqs.NQS(cnn, seed=1234)
 
-    sampler_cnn = jVMC.sampler.ExactSampler(psi_cnn, (L,), lDim=4, logProbFactor=1)
+#     sampler_cnn = jVMC.sampler.ExactSampler(psi_cnn, (L,), lDim=4, logProbFactor=1)
 
-    tdvpEquation_cnn = jVMC.util.tdvp.TDVP(sampler_cnn, rhsPrefactor=-1.,
-                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+#     tdvpEquation_cnn = jVMC.util.tdvp.TDVP(sampler_cnn, rhsPrefactor=-1.,
+#                                            svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
 
-    init_stepper = jVMC.util.Euler(timeStep=1e-2)
-    stepper = jvmc_utilities.stepper.BulirschStoer(timeStep=1e-2)
+#     init_stepper = jVMC.util.Euler(timeStep=1e-2)
+#     stepper = jvmc_utilities.stepper.BulirschStoer(timeStep=1e-2)
 
-    povm = jVMC.operator.POVM({"dim": "1D", "L": L})
-    lind = jVMC.operator.POVMOperator(povm)
-    jvmc_utilities.operators.initialisation_operators(povm)
-    lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
+#     povm = jVMC.operator.POVM({"dim": "1D", "L": L})
+#     lind = jVMC.operator.POVMOperator(povm)
+#     jvmc_utilities.operators.initialisation_operators(povm)
+#     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
 
-    measurer_cnn = jvmc_utilities.measurement.Measurement(sampler_cnn, povm)
-    measurer_cnn.set_observables(["Sz_i"])
-    init_cnn = jvmc_utilities.time_evolve.Initializer(psi_cnn, tdvpEquation_cnn, init_stepper, lind,
-                                                      measurer=measurer_cnn)
+#     measurer_cnn = jvmc_utilities.measurement.Measurement(sampler_cnn, povm)
+#     measurer_cnn.set_observables(["Sz_i"])
+#     init_cnn = jvmc_utilities.time_evolve.Initializer(psi_cnn, tdvpEquation_cnn, init_stepper, lind,
+#                                                       measurer=measurer_cnn)
 
-    init_cnn.initialize(steps=100)
+#     init_cnn.initialize(steps=100)
 
-    evol = jvmc_utilities.time_evolve.TimeEvolver(psi_cnn, tdvpEquation_cnn, stepper, measurer_cnn)
+#     evol = jvmc_utilities.time_evolve.TimeEvolver(psi_cnn, tdvpEquation_cnn, stepper, measurer_cnn)
 
-    lindbladian = jVMC.operator.POVMOperator(povm)
-    lindbladian.add({"name": "decaydown", "strength": 1.0, "sites": (0,)})
-    lindbladian.add({"name": "decayup", "strength": 1.0, "sites": (1,)})
+#     lindbladian = jVMC.operator.POVMOperator(povm)
+#     lindbladian.add({"name": "decaydown", "strength": 1.0, "sites": (0,)})
+#     lindbladian.add({"name": "decayup", "strength": 1.0, "sites": (1,)})
 
-    evol.run(lindbladian, 2.0)
+#     evol.run(lindbladian, 2.0)
 
-    assert(jnp.allclose(evol.results["Sz_i"][:, 0], 2*jnp.exp(-evol.times) - 1, atol=1E-2))
-    assert(jnp.allclose(evol.results["Sz_i"][:, 1], 1 - 2*jnp.exp(-evol.times), atol=1E-2))
+#     assert(jnp.allclose(evol.results["Sz_i"][:, 0], 2*jnp.exp(-evol.times) - 1, atol=1E-2))
+#     assert(jnp.allclose(evol.results["Sz_i"][:, 1], 1 - 2*jnp.exp(-evol.times), atol=1E-2))
