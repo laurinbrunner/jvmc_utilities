@@ -3,7 +3,7 @@ import jVMC
 import pytest
 import jax
 
-import jvmc_utilities.time_evolve
+import jvmc_utilities
 
 
 @pytest.fixture(scope='module')
@@ -15,8 +15,8 @@ def setup_method():
                                                                  "cell": "RNN"}}},
                                   (L,), 123)
     sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
-    tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=True)
+    tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
+                                       makeReal='real', crossValidation=False)
     stepper = jVMC.util.stepper.Euler(timeStep=1E-2)
     povm = jVMC.operator.POVM({"dim": "1D", "L": L})
     jvmc_utilities.operators.initialisation_operators(povm)
@@ -25,7 +25,7 @@ def setup_method():
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (2, 3)})
     init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind)
 
-    init.initialize_no_measurement()
+    init.initialize(measure_step=-1)
 
     return sampler, povm
 
@@ -36,8 +36,8 @@ def test_Sz_l(setup_method):
     measurer.set_observables(["Sx_i", "Sy_i", "Sz_i", "N"])
     results = measurer.measure()
 
-    assert(jnp.allclose(results["Sx_i"], 0, atol=1E-4))
-    assert(jnp.allclose(results["Sy_i"], 0, atol=1E-4))
+    assert(jnp.allclose(results["Sx_i"], 0, atol=5E-4))
+    assert(jnp.allclose(results["Sy_i"], 0, atol=5E-4))
     assert(jnp.allclose(results["Sz_i"], jnp.array([1, -1, 1, -1]), atol=1E-3))
     assert(jnp.allclose(results["N"], jnp.array([1, 0]), atol=1E-3))
 

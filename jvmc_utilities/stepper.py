@@ -1,6 +1,7 @@
 import numpy as np
 import jax.numpy
 from typing import Tuple
+import warnings
 
 
 class BulirschStoer:
@@ -13,10 +14,11 @@ class BulirschStoer:
             self,
             timeStep: float = 1e-2,
             kmax: int = 8,
-            kmin: int = 1,
+            kmin: int = 2,
             atol: float = 1e-5,
             rtol: float = 1e-7,
-            maxStep: float = 0.1
+            maxStep: float = 0.1,
+            max_iterations: int = 100
     ) -> None:
         self.kmax = kmax
         self.kmin = kmin
@@ -25,10 +27,16 @@ class BulirschStoer:
         self.atol = atol
         self.rtol = rtol
         self.maxStep = maxStep
+        self.max_iterations = max_iterations
 
         # S1 and S2 are safety factors smaller than one
         self.S1 = 0.94
         self.S2 = 0.65
+        self.S3 = 0.02
+        self.S4 = 4.0
+
+        self.kFac1 = 0.8
+        self.kFac2 = 0.9
 
         self.compiled_midpoints = {n_k: lambda t, f, y, step_size, **rhsArgs:
                                              self._midpoint(t, f, y, step_size, n_k, **rhsArgs)
@@ -42,8 +50,7 @@ class BulirschStoer:
 
     @k_target.setter
     def k_target(self, new_k: int) -> None:
-        if self.kmin <= new_k <= self.kmax:
-            self.__k_target = new_k
+        self.__k_target = max(self.kmin, min(self.kmax, new_k))
 
     def _midpoint(
             self,
@@ -68,7 +75,9 @@ class BulirschStoer:
         return T_matrix[k, j] + (T_matrix[k, j] - T_matrix[k-1, j])/((self.substeps[k]/self.substeps[k-j-1])**2 - 1)
 
     def _estimated_step(self, dt: float, err: float, k: int) -> float:
-        return dt * self.S1 * (self.S2 / err)**(1/(2*k-1))
+        facmin = self.S3**(1/(2*k-1))
+        fac = max(facmin / self.S4, min(1/facmin, self.S1 * (self.S2 / err)**(1/(2*k-1))))
+        return dt * fac
 
     def step(
             self,
@@ -84,7 +93,9 @@ class BulirschStoer:
             scale = self.atol + jax.numpy.max(jax.numpy.array([normFunction(y), normFunction(T[k, k])])) * self.rtol
             return normFunction(T[k, k] - T[k, k-1]) / scale
 
-        while True:
+        iterations = 0
+        while iterations < self.max_iterations:
+            iterations += 1
             T_matrix = jax.numpy.zeros((self.k_target + 1, self.k_target + 1, y.size), dtype=y.dtype)
             T_matrix = T_matrix.at[0, 0].set(self._midpoint(t, f, y, dt, self.substeps[0], **rhsArgs))
 
@@ -105,18 +116,21 @@ class BulirschStoer:
             if err_km1 <= 1:  # Already accept this approximation
                 y_new = T_matrix[self.k_target - 1, self.k_target - 1]
                 # Choose new proposed parameters for next step
-                if W_km1 < 0.9 * W_km2:
+                if W_km1 < self.kFac2 * W_km2:
                     self.dt = min(H_km1 * self.A_k[self.k_target] / self.A_k[self.k_target - 1], self.maxStep)
                     self.k_target = self.k_target
+                elif W_km2 < self.kFac1 * W_km1:
+                    self.dt = min(H_km1, self.maxStep)
+                    self.k_target = self.k_target - 2
                 else:
                     self.dt = min(H_km1, self.maxStep)
                     self.k_target = self.k_target - 1
                 break
             elif err_km1 > (self.substeps[self.k_target + 1] * self.substeps[self.k_target] / self.substeps[0]
-                            / self.substeps[1])**2: # Not expecting convergence in k_target + 1?
-                if W_km1 < 0.9 * W_km2:
-                    dt = min(H_km1 * self.A_k[self.k_target] / self.A_k[self.k_target - 1], self.maxStep)
-                    self.k_target = self.k_target
+                            / self.substeps[0])**2: # Not expecting convergence in k_target + 1?
+                if W_km2 < self.kFac1 * W_km1:
+                    dt = min(H_km2, self.maxStep)
+                    self.k_target = self.k_target - 2
                 else:
                     dt = min(H_km1, self.maxStep)
                     self.k_target = self.k_target - 1
@@ -137,10 +151,10 @@ class BulirschStoer:
                 y_new = T_matrix[self.k_target, self.k_target]
 
                 # Choose new proposed parameters for next step
-                if W_km1 < 0.9 * W_k:
+                if W_km1 < self.kFac1 * W_k:
                     self.dt = min(H_km1, self.maxStep)
                     self.k_target = self.k_target - 1
-                elif W_k < 0.9 * W_km1:
+                elif W_k < self.kFac1 * W_km1:
                     self.dt = min(H_k * self.A_k[self.k_target + 1] / self.A_k[self.k_target], self.maxStep)
                     self.k_target = self.k_target + 1
                 else:
@@ -149,10 +163,10 @@ class BulirschStoer:
                 break
             elif err_k > (self.substeps[self.k_target + 1] / self.substeps[0])**2:
                 # Choose proposed parameters for retrying this step
-                if W_km1 < 0.9 * W_k:
+                if W_km1 < self.kFac1 * W_k:
                     dt = min(H_km1, self.maxStep)
                     self.k_target = self.k_target - 1
-                elif W_k < 0.9 * W_km1:
+                elif W_k < self.kFac2 * W_km1:
                     dt = min(H_k * self.A_k[self.k_target + 1] / self.A_k[self.k_target], self.maxStep)
                     self.k_target = self.k_target + 1
                 else:
@@ -174,9 +188,9 @@ class BulirschStoer:
             if err_kp1 <= 1:
                 y_new = T_matrix[self.k_target + 1, self.k_target + 1]
 
-                if W_km1 < 0.9 * W_k:
+                if W_km1 < self.kFac1 * W_k:
                     self.k_target = self.k_target - 1
-                if W_kp1 < 0.9 * W_k:
+                if W_kp1 < self.kFac2 * W_k:
                     self.k_target = self.k_target + 1
                 else:
                     self.k_target = self.k_target
@@ -184,5 +198,9 @@ class BulirschStoer:
             else:
                 dt = min(H_kp1, self.maxStep)
                 continue
+
+        if iterations == self.max_iterations:
+            y_new = T_matrix[self.k_target-1, self.k_target-1]
+            warnings.warn("Maximum number of iterations reached. Result may be inaccurate.", Warning)
 
         return y_new, dt

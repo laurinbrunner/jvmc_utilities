@@ -339,7 +339,7 @@ class DeepNADE(nn.Module):
     def setup(self) -> None:
         self.deep_layers = [[nn.Dense(features=self.hiddenSize, use_bias=True if (i == 0 and _ == 0) else False)
                              for i in range(self.depth)] for _ in range(self.L)]
-        self.last_layer = [nn.Dense(features=4, use_bias=True) for _ in range(self.L)]
+        self.last_layer = [nn.Dense(features=self.inputDim, use_bias=True) for _ in range(self.L)]
 
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         def evaluate(x: jnp.ndarray) -> jnp.ndarray:
