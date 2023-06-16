@@ -6,3 +6,4 @@ tqdm>=4.64.0
 setuptools-scm[toml]>=4
 clu>=0.0.7
 h5py>=3.7.0
+tensorflow==2.10.0
