@@ -1,5 +1,6 @@
 jVMC>=1.2.2
 jax>=0.4.1,<=0.4.11
+jaxlib>=0.4.1,<=0.4.11
 setuptools==61.2.0
 setuptools-scm[toml]==4
 numpy>=1.23.1
