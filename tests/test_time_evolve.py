@@ -211,3 +211,26 @@ def test_writer(tmp_path):
     assert (tmp_path / "test_parameter").exists()
     assert "ElocMean" in time_evolver.meta_data.keys()
     assert time_evolver.times.shape == (12,)
+
+
+def test_timing(tmp_path):
+    L = 2
+    net = jvmc_utilities.nets.DeepNADE(L=L, depth=1, hiddenSize=3, inputDim=4, logProbFactor=1)
+    psi = jVMC.vqs.NQS(net, seed=1234, batchSize=5000)
+    sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
+    tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
+                                       makeReal='real', crossValidation=False)
+    stepper = jVMC.util.stepper.Euler(timeStep=1E-2)
+    povm = jVMC.operator.POVM({"dim": "1D", "L": L})
+    lind = jVMC.operator.POVMOperator(povm)
+    lind.add({"name": "decayup", "strength": 5.0, "sites": (0,)})
+    lind.add({"name": "decayup", "strength": 5.0, "sites": (1,)})
+
+    measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
+    measurer.set_observables(["Sz_i", "N"])
+    time_evolver = jvmc_utilities.time_evolve.TimeEvolver(psi, tdvpEquation, stepper, measurer,
+                                                          timing_file=tmp_path / "test_timing")
+
+    time_evolver.run(lind, 0.1001)
+
+    assert (tmp_path / "test_timing").exists()
