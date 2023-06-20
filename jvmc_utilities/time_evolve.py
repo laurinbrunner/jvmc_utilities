@@ -329,7 +329,16 @@ class TimeEvolver:
         self.current_times = []
 
 
+
     def run(self, lindbladian: jVMC.operator.POVMOperator, max_time: float, measure_step: int = 0) -> None:
+
+        def start_timing(name: str) -> None:
+            if self.timing_file is not None:
+                self.timing_manager.start_timing(name)
+
+        def stop_timing(name: str) -> None:
+            if self.timing_file is not None:
+                self.timing_manager.stop_timing(name)
 
         self.real_times.append([])
 
@@ -355,11 +364,13 @@ class TimeEvolver:
                 t += dt
                 self.psi.set_parameters(dp)
 
+                start_timing("TimeEvolver measurement")
                 if measure_counter == measure_step:
                     self.__do_measurement(t=t, dt=dt)
                     measure_counter = 0
                 else:
                     measure_counter += 1
+                stop_timing("TimeEvolver measurement")
 
                 # Save parameters at every step
                 if self.parameter_output_manager is not None:
@@ -591,7 +602,7 @@ class TimeEvolver:
         if not self.timings:
             for key, item in self.timing_manager.timings.items():
                 self.timings[key] = {"count": [], "total": [], "time": []}
-            self.timings["count"] = 0
+            self.timings["count"] = 1
         for key, item in self.timing_manager.timings.items():
             for k, k2 in [("count", "count"), ("total", "total"), ("time", "newest")]:
                 self.timings[key][k].append(item[k2])
@@ -599,13 +610,14 @@ class TimeEvolver:
 
     def __save_timings(self) -> None:
         with open(self.timing_file, "w" ) as f:
-            for i in range(self.timings["count"]):
+            f.write(f"{'' :<40}{'Total' :<25}{'per step' :<25}\n")
+            f.write("-" * 90 + "\n")
+            for i in range(self.timings["count"] - 1):
                 timing_string = f"count: {i}\n"
-                print(self.timings.keys())
-                print(self.timings.keys() - ["count"])
                 for key in self.timings.keys() - ["count"]:
-                    for k in ["count", "total", "time"]:
-                        timing_string += f"{key}: {self.timings[key][k][i]}\n"
+                    timing_string += f"{key :<40}{self.timings[key]['total'][i] :<25}" \
+                                     f"{self.timings[key]['time'][i] :<25}\n"
+                timing_string += "-" * 90 + "\n"
                 f.write(timing_string)
 
 
