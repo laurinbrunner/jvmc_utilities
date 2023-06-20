@@ -7,6 +7,7 @@ import warnings
 import time
 from clu import metric_writers
 import h5py
+import os
 
 import jvmc_utilities
 import jax
@@ -264,7 +265,8 @@ class TimeEvolver:
             measurer: Measurement,
             writer: metric_writers.summary_writer.SummaryWriter = None,
             additional_hparams: Dict = None,
-            parameter_file: str = None
+            parameter_file: str = None,
+            timing_file: str = None
     ) -> None:
         self.psi = psi
         self.tdvpEquation = tdvpEquation
@@ -305,6 +307,18 @@ class TimeEvolver:
         self.meta_data = {"tdvp_Error": None, "tdvp_Residual": None, "CV_Error": None, "CV_Residual": None,
                           "tdvp_Error/integrated": None, "CV_Error/integrated": None, "ElocMean": None, "ElocVar": None}
 
+        if timing_file is not None:
+            # Create timing output manager, that can be deleted right away (only the object is needed, not the file)
+            self.timing_manager = jVMC.util.OutputManager("./timing.tmp")
+            try:
+                os.remove("./timing.tmp")
+            except OSError:
+                pass
+
+            self.timings = {}
+
+        self.timing_file = timing_file
+
         # Dictionaries for current run
         self.__reset_current_run_dicts()
 
@@ -330,7 +344,8 @@ class TimeEvolver:
             while t - self.current_times[0] < max_time:
 
                 dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
-                                           hamiltonian=lindbladian, psi=self.psi, normFunction=self.__norm_fun)
+                                           hamiltonian=lindbladian, psi=self.psi, normFunction=self.__norm_fun,
+                                           outp=self.timing_manager if self.timing_file is not None else None)
 
                 if jnp.any(jnp.isnan(dp)):
                     warnings.warn("TimeEvolver ran into nan-valued parameters. Aborted time evolution.",
@@ -349,6 +364,8 @@ class TimeEvolver:
                 # Save parameters at every step
                 if self.parameter_output_manager is not None:
                     self.__save_parameters(t)
+                if self.timing_file is not None:
+                    self.__take_timings()
 
                 # update tqdm bar
                 pbar.set_postfix({"t": t})
@@ -366,6 +383,8 @@ class TimeEvolver:
                 self.__do_measurement(t=t, dt=dt)
 
             self.__convert_to_arrays()
+            if self.timing_file is not None:
+                self.__save_timings()
 
     def __norm_fun(self, v: jnp.ndarray) -> float:
         return jnp.real(jnp.conj(jnp.transpose(v)).dot(self.tdvpEquation.S_dot(v)))
@@ -567,6 +586,27 @@ class TimeEvolver:
                 hparams[k] = self.additional_hparams[k]
 
         self.writer.write_hparams(hparams)
+
+    def __take_timings(self) -> None:
+        if not self.timings:
+            for key, item in self.timing_manager.timings.items():
+                self.timings[key] = {"count": [], "total": [], "time": []}
+            self.timings["count"] = 0
+        for key, item in self.timing_manager.timings.items():
+            for k, k2 in [("count", "count"), ("total", "total"), ("time", "newest")]:
+                self.timings[key][k].append(item[k2])
+        self.timings["count"] += 1
+
+    def __save_timings(self) -> None:
+        with open(self.timing_file, "w" ) as f:
+            for i in range(self.timings["count"]):
+                timing_string = f"count: {i}\n"
+                print(self.timings.keys())
+                print(self.timings.keys() - ["count"])
+                for key in self.timings.keys() - ["count"]:
+                    for k in ["count", "total", "time"]:
+                        timing_string += f"{key}: {self.timings[key][k][i]}\n"
+                f.write(timing_string)
 
 
 def copy_state(source: jVMC.vqs.NQS, target: jVMC.vqs.NQS) -> None:
