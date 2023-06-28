@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 import jVMC.operator as jvmcop
+import jVMC.global_defs as global_defs
 import itertools
 from typing import Tuple
 
@@ -129,3 +130,114 @@ def aqi_model_operators(povm: jvmcop.POVM) -> None:
     if "cond_cluster_pmnn_dis" not in povm.operators.keys():
         povm.add_dissipator("cond_cluster_pmnn_dis", jvmcop.matrix_to_povm(conditional_cluster_pmnn, M_4Body,
                                                                            T_inv_4Body, mode="dis"))
+
+
+class EfficientPOVMOperator(jvmcop.POVMOperator):
+    """
+    More efficient implementation of the POVMOperator class, that only evaluates the s_prime configurations that have a
+    non-zero weight.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def get_O_loc(self, samples, psi, logPsiS=None, *args):
+        """Compute :math:`O_{loc}(s)`.
+
+        If the instance parameter ElocBatchSize is larger than 0 :math:`O_{loc}(s)` is computed in a batch-wise manner
+        to avoid out-of-memory issues.
+
+        Arguments:
+            * ``samples``: Sample of computational basis configurations :math:`s`.
+            * ``psi``: Neural quantum state.
+            * ``logPsiS``: Logarithmic amplitudes :math:`\\ln(\psi(s))`
+            * ``*args``: Further positional arguments for the operator.
+
+        Returns:
+            :math:`O_{loc}(s)` for each configuration :math:`s`.
+        """
+
+        if logPsiS is None:
+            logPsiS = psi(samples)
+
+        if self.ElocBatchSize > 0:
+            return self.get_O_loc_batched(samples, psi, logPsiS, self.ElocBatchSize, *args)
+        else:
+            sp, matEl = self.get_s_primes(samples, *args)
+
+            logPsiSP = jnp.zeros((sp.shape[0], sp.shape[1]), dtype=jnp.float64)
+            nonzero_idx = jnp.where(jnp.logical_not(jnp.isclose(matEl.reshape(matEl.shape[0], -1), 0)))
+            logPsiSP = logPsiSP.at[nonzero_idx].set(psi(sp[nonzero_idx].reshape(1, -1, sp.shape[-1])).reshape(-1))
+
+            return self.get_O_loc_unbatched(logPsiS, logPsiSP)
+
+    def get_O_loc_batched(self, samples, psi, logPsiS, batchSize, *args):
+        """Compute :math:`O_{loc}(s)` in batches.
+
+        Computes :math:`O_{loc}(s)=\sum_{s'} O_{s,s'}\\frac{\psi(s')}{\psi(s)}` in a batch-wise manner
+        to avoid out-of-memory issues.
+
+        Arguments:
+            * ``samples``: Sample of computational basis configurations :math:`s`.
+            * ``psi``: Neural quantum state.
+            * ``logPsiS``: Logarithmic amplitudes :math:`\\ln(\psi(s))`
+            * ``batchSize``: Batch size.
+            * ``*args``: Further positional arguments for the operator.
+
+        Returns:
+            :math:`O_{loc}(s)` for each configuration :math:`s`.
+        """
+
+        Oloc = None
+
+        numSamples = samples.shape[1]
+        numBatches = numSamples // batchSize
+        remainder = numSamples % batchSize
+
+        # Minimize mismatch
+        if remainder > 0:
+            batchSize = numSamples // (numBatches + 1)
+            numBatches = numSamples // batchSize
+            remainder = numSamples % batchSize
+
+        for b in range(numBatches):
+
+            batch = self._get_config_batch_pmapd(samples, b * batchSize, batchSize)
+            logPsiSbatch = self._get_logPsi_batch_pmapd(logPsiS, b * batchSize, batchSize)
+
+            sp, matEl = self.get_s_primes(batch, *args)
+
+            logPsiSP = jnp.zeros((sp.shape[0], sp.shape[1]), dtype=jnp.float64)
+            nonzero_idx = jnp.where(jnp.logical_not(jnp.isclose(matEl.reshape(matEl.shape[0], -1), 0)))
+            logPsiSP = logPsiSP.at[nonzero_idx].set(psi(sp[nonzero_idx].reshape(1, -1, sp.shape[-1])).reshape(-1))
+
+            OlocBatch = self.get_O_loc_unbatched(logPsiSbatch, logPsiSP)
+
+            if Oloc is None:
+                if OlocBatch.dtype == global_defs.tCpx:
+                    Oloc = self._alloc_Oloc_cpx_pmapd(samples)
+                else:
+                    Oloc = self._alloc_Oloc_real_pmapd(samples)
+
+            Oloc = self._insert_Oloc_batch_pmapd(Oloc, OlocBatch, b * batchSize)
+
+        if remainder > 0:
+            batch = self._get_config_batch_pmapd(samples, numBatches * batchSize, remainder)
+            batch = global_defs.pmap_for_my_devices(jvmcop.expand_batch, static_broadcasted_argnums=(1,))(batch,
+                                                                                                          batchSize)
+            logPsiSbatch = self._get_logPsi_batch_pmapd(logPsiS, numBatches * batchSize, numSamples % batchSize)
+            logPsiSbatch = global_defs.pmap_for_my_devices(jvmcop.expand_batch, static_broadcasted_argnums=(1,))(
+                logPsiSbatch, batchSize)
+
+            sp, matEl = self.get_s_primes(batch, *args)
+
+            logPsiSP = jnp.zeros((sp.shape[0], sp.shape[1]), dtype=jnp.float64)
+            nonzero_idx = jnp.where(jnp.logical_not(jnp.isclose(matEl.reshape(matEl.shape[0], -1), 0)))
+            logPsiSP = logPsiSP.at[nonzero_idx].set(psi(sp[nonzero_idx].reshape(1, -1, sp.shape[-1])).reshape(-1))
+
+            OlocBatch = self.get_O_loc_unbatched(logPsiSbatch, logPsiSP)
+
+            OlocBatch = self._get_Oloc_slice_pmapd(OlocBatch, 0, remainder)
+
+            Oloc = self._insert_Oloc_batch_pmapd(Oloc, OlocBatch, numBatches * batchSize)
+
+        return Oloc
