@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 import jVMC
+import jax.random
 import pytest
 
 from jvmc_utilities import *
@@ -85,3 +86,51 @@ def test_aqi_model_operators():
         aqi_model_operators(povm)
     except ValueError as exc:
         assert False, f"'initialisation_operators' raised an exception {exc}"
+
+
+def test_efficient_povm_operator():
+    net = nets.DeepNADE(L=4, depth=1, hiddenSize=8)
+    psi = jVMC.vqs.NQS(net, seed=1234, batchSize=5000)
+    povm = jVMC.operator.POVM({"dim": "1D", "L": 2})
+    aqi_model_operators(povm)
+
+    sampler = jVMC.sampler.MCSampler(psi, (4,), jax.random.PRNGKey(1234), numSamples=1000)
+
+    efficient_lindblad = EfficientPOVMOperator(povm=povm)
+    lindblad = jVMC.operator.POVMOperator(povm=povm)
+
+    for i in range(4):
+        efficient_lindblad.add({"name": "X", "strength": 1., "sites": (i,)})
+        lindblad.add({"name": "X", "strength": 1., "sites": (i,)})
+        efficient_lindblad.add({"name": "spin_flip_dis", "strength": 1., "sites": (i, (i+1) % 4)})
+        lindblad.add({"name": "spin_flip_dis", "strength": 1., "sites": (i, (i+1) % 4)})
+
+    confs, logPsiS, _ = sampler.sample()
+
+    Oloc1 = efficient_lindblad.get_O_loc(confs, psi, logPsiS)
+    Oloc2 = lindblad.get_O_loc(confs, psi, logPsiS)
+    assert (Oloc1 == Oloc2).all()
+
+
+def test_efficient_povm_operator_batched():
+    net = nets.DeepNADE(L=4, depth=1, hiddenSize=8)
+    psi = jVMC.vqs.NQS(net, seed=1234, batchSize=5000)
+    povm = jVMC.operator.POVM({"dim": "1D", "L": 2})
+    aqi_model_operators(povm)
+
+    sampler = jVMC.sampler.MCSampler(psi, (4,), jax.random.PRNGKey(1234), numSamples=1000)
+
+    efficient_lindblad = EfficientPOVMOperator(povm=povm, ElocBatchSize=100)
+    lindblad = jVMC.operator.POVMOperator(povm=povm, ElocBatchSize=100)
+
+    for i in range(4):
+        efficient_lindblad.add({"name": "X", "strength": 1., "sites": (i,)})
+        lindblad.add({"name": "X", "strength": 1., "sites": (i,)})
+        efficient_lindblad.add({"name": "spin_flip_dis", "strength": 1., "sites": (i, (i+1) % 4)})
+        lindblad.add({"name": "spin_flip_dis", "strength": 1., "sites": (i, (i+1) % 4)})
+
+    confs, logPsiS, _ = sampler.sample()
+
+    Oloc1 = efficient_lindblad.get_O_loc(confs, psi, logPsiS)
+    Oloc2 = lindblad.get_O_loc(confs, psi, logPsiS)
+    assert (Oloc1 == Oloc2).all()
