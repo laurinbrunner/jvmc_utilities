@@ -410,7 +410,7 @@ class TimeEvolver:
         writedict_index = {}
 
         # Write standard observables
-        for obs in ["Sx_i", "Sy_i", "Sz_i", "m_corr", "Sx_i_MC_error", "Sy_i_MC_error", "Sz_i_MC_error"]:
+        for obs in ["Sx_i", "Sy_i", "Sz_i", "m_corr", "Sx_i_MC_error", "Sy_i_MC_error", "Sz_i_MC_error", "M_sq"]:
             try:
                 if len(results[obs].shape) == 1:
                     writedict_time[obs[1].upper() + obs[4:]] = jnp.mean(results[obs])
