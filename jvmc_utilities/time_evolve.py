@@ -419,7 +419,7 @@ class TimeEvolver:
                 elif len(results[obs].shape) == 2:
                     for i in range(results[obs].shape[0]):
                         for j in range(results[obs].shape[1]):
-                            writedict_time[f"{obs}/{i}_{j}"] = results[obs][i, j]
+                            writedict_time[f"{obs}/{i},{j}"] = results[obs][i, j]
                 else:
                     writedict_time[f"{obs}"] = results[obs]
             except KeyError:
@@ -448,7 +448,10 @@ class TimeEvolver:
         writedict_index["dt"] = dt
         for key in meta_data_update.keys():
             writedict_index[key] = meta_data_update[key]
-            writedict_time[f"{key}/time"] = meta_data_update[key]
+            if "/" in key:
+                writedict_time[f"{key}_time"] = meta_data_update[key]
+            else:
+                writedict_time[f"{key}/time"] = meta_data_update[key]
 
         if self.tdvpEquation.metaData is not None:
             # This will be skipped when the TDVP.__call__ function has not been called yet
