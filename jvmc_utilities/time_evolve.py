@@ -446,6 +446,7 @@ class TimeEvolver:
         # Write meta data
         writedict_index["t"] = t
         writedict_index["dt"] = dt
+        writedict_time["dt/time"] = dt
         for key in meta_data_update.keys():
             writedict_index[key] = meta_data_update[key]
             if "/" in key:
