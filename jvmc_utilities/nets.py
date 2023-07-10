@@ -16,32 +16,39 @@ class POVMCNN(nn.Module):
 
     :param L: system size
     :param kernel_size: size of kernel for convolution
-    :param kernel_dilation: dilation of the kernel for convolution
     :param features: number of hidden units
     :param inputDim: dimension of the input (4 for POVMs and 2 for spin 1/2)
-    :param depth: number of NADE layers
+    :param depth: number of convolutional layers
     :param actFun: activation function to be used at the end of every layer
     :param orbit: LatticeSymmetry object that encodes all symmetry transformations applicable to the system
     :param logProbFactor: exponent of the probability (1 for POVMs and 0.5 for pure wave functions)
+    :param param_dtype: data type for network parameters
     """
 
     L: int = 4
     kernel_size: Tuple[int] = (2,)
-    kernel_dilation: int = 1
     features: Union[Tuple[int], int] = 8
     inputDim: int = 4
     actFun: callable = nn.elu
     depth: int = 2
     orbit: LatticeSymmetry = None
     logProbFactor: float = 1.  # 1 for POVMs and 0.5 for pure wave functions
+    param_dtype: type = jnp.float32
 
     def setup(self) -> None:
+        features = self.features
         if type(self.features) is int:
-            self.features = tuple([self.features] * self.depth)
-        self.cells = [CNNCell(features=self.features[i] if i != self.depth - 1 else 4, kernel_size=self.kernel_size,
-                              kernel_dilation=self.kernel_dilation*2**i if i != self.depth - 1 else 1,
-                              actFun=self.actFun)
+            features = tuple([self.features] * self.depth)
+        self.cells = [CNNCell(features=features[i] if i != self.depth - 1 else self.inputDim,
+                              kernel_size=self.kernel_size, actFun=self.actFun, param_dtype=self.param_dtype,
+                              kernel_dilation=self.kernel_size[0]**i)
                       for i in range(self.depth)]
+
+        self.paddings = tuple([self.kernel_size[0]] +
+                              [self.kernel_size[0]**i * (self.kernel_size[0] - 1) for i in range(1, self.depth)])
+
+        self.cache_sizes = tuple([(self.kernel_size[0], self.inputDim)] +
+                                 [(self.paddings[i] + 1, features[i - 1]) for i in range(1, self.depth)])
 
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         def evaluate(x: jnp.ndarray):
@@ -62,16 +69,9 @@ class POVMCNN(nn.Module):
     def cnn_cell(self, x: jnp.ndarray) -> jnp.ndarray:
         x = x[:-1].reshape(1, -1, self.inputDim)
 
-        for i in range(self.depth - 1):
-            pad = 2 if i == 0 else 2**i
-            x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
-
+        for i in range(self.depth):
+            x = jnp.pad(x, ((0, 0), (self.paddings[i], 0), (0, 0)))
             x = self.cells[i](x)
-
-        pad = 2 if self.depth == 0 else 1
-        x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
-
-        x = self.cells[-1](x)
 
         return x[0]
 
@@ -84,11 +84,8 @@ class POVMCNN(nn.Module):
             conf = jnp.zeros(self.L, dtype=np.int64)
 
             # This list caches the input to the i-th cnn layer
-            cache = [jnp.zeros(receptive_field) for receptive_field in
-                     [(2, 4) if i == 0 else
-                      ((2, self.features[i - 1]) if i == self.depth - 1
-                       else (2**i + 1, self.features[i - 1]))
-                      for i in range(self.depth)]]
+            cache = [jnp.zeros(rf) for rf in self.cache_sizes]
+
             for idx in range(self.L):
                 for i in range(self.depth):
                     x = jnp.copy(cache[i])
