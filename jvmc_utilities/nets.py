@@ -4,6 +4,7 @@ import numpy as np
 from flax import linen as nn
 from jVMC.util.symmetries import LatticeSymmetry
 from jax._src.prng import PRNGKeyArray
+from typing import Union, Tuple
 
 
 class POVMCNN(nn.Module):
@@ -25,16 +26,18 @@ class POVMCNN(nn.Module):
     """
 
     L: int = 4
-    kernel_size: int = (2,)
+    kernel_size: Tuple[int] = (2,)
     kernel_dilation: int = 1
-    features: int = (8,)
+    features: Union[Tuple[int], int] = 8
     inputDim: int = 4
     actFun: callable = nn.elu
     depth: int = 2
     orbit: LatticeSymmetry = None
-    logProbFactor: float = 1  # 1 for POVMs and 0.5 for pure wave functions
+    logProbFactor: float = 1.  # 1 for POVMs and 0.5 for pure wave functions
 
     def setup(self) -> None:
+        if type(self.features) is int:
+            self.features = tuple([self.features] * self.depth)
         self.cells = [CNNCell(features=self.features[i] if i != self.depth - 1 else 4, kernel_size=self.kernel_size,
                               kernel_dilation=self.kernel_dilation*2**i if i != self.depth - 1 else 1,
                               actFun=self.actFun)
