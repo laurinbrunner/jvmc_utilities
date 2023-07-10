@@ -209,6 +209,105 @@ class POVMCNNResidual(POVMCNN):
         return configs
 
 
+class CNNAttention(nn.Module):
+    L: int = 4
+    kernel_size: Tuple[int] = (2,)
+    features: Union[Tuple[int], int] = 8
+    inputDim: int = 4
+    depth: int = 2
+    actFun: callable = nn.elu
+    orbit: LatticeSymmetry = None
+    logProbFactor: float = 1.  # 1 for POVMs and 0.5 for pure wave functions
+    param_dtype: type = jnp.float32
+    attention_heads: int = 1
+
+    def setup(self) -> None:
+        self.attention_mask = jnp.triu(jnp.ones((self.L, self.L), dtype=bool))
+        self.attention_module = nn.SelfAttention(num_heads=self.attention_heads, param_dtype=self.param_dtype)
+
+        self.conv_cells = [CNNCell(features=self.features if i != self.depth - 1 else self.inputDim,
+                                   kernel_size=self.kernel_size, kernel_dilation=self.kernel_size[0] ** i,
+                                   param_dtype=self.param_dtype, name=f'cnn_cell_{i}')
+                           for i in range(self.depth)]
+
+        self.paddings = tuple([self.kernel_size[0]] + [self.kernel_size[0] ** i * (self.kernel_size[0] - 1)
+                                                       for i in range(1, self.depth)])
+        self.cache_sizes = tuple([(self.kernel_size[0], self.inputDim)] +
+                                 [(self.paddings[i] + 1, self.features) for i in range(1, self.depth)])
+
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+        def evaluate(x):
+            x_oh = jax.nn.one_hot(x, self.inputDim)
+
+            y = self.attention(x_oh)
+            y = self.cnn_cell(y)
+
+            return jnp.sum(jax.nn.log_softmax(y) * x_oh)
+
+        if self.orbit is not None:
+            # Symmetry case
+            x = jax.vmap(lambda o, s: jnp.dot(o, s), in_axes=(0, None))(self.orbit.orbit, x)
+            res = jnp.mean(jnp.exp(jax.vmap(evaluate)(x) / self.logProbFactor), axis=0)
+
+            return self.logProbFactor * jnp.log(res)
+        else:
+            # No symmetry case
+            return evaluate(x)
+
+    def attention(self, x_oh):
+        return self.attention_module(x_oh, mask=self.attention_mask)
+
+    def cnn_cell(self, x: jnp.ndarray) -> jnp.ndarray:
+        x = x[:-1].reshape(1, -1, self.inputDim)
+
+        for i in range(self.depth):
+            x = jnp.pad(x, ((0, 0), (self.paddings[i], 0), (0, 0)))
+            x = self.conv_cells[i](x)
+
+        return x[0]
+
+    def sample(self, batchSize: int, key) -> jnp.ndarray:
+        """
+        This implementation is inspired by 'Fast Generation for Convolutional Autoregressive Models' (arXiv:1704.06001).
+        """
+
+        def generate_sample(key):
+            _tmpkeys = jax.random.split(key, self.L)
+            conf = jnp.zeros(self.L, dtype=np.int64)
+
+            cache = [jnp.zeros(rf) for rf in self.cache_sizes]
+
+            for idx in range(self.L):
+                for i in range(self.depth - 1):
+                    x = jnp.copy(cache[i])
+                    x = self.conv_cells[i](x)
+
+                    cache[i + 1] = jnp.roll(cache[i + 1], -1, axis=0)
+                    cache[i + 1] = cache[i + 1].at[-1].set(x[0])
+
+                x = jnp.copy(cache[self.depth - 1])
+                x = self.conv_cells[-1](x)
+
+                new_value = jax.random.categorical(_tmpkeys[idx], nn.log_softmax(x[0].transpose()).transpose())
+                conf = conf.at[idx].set(new_value)
+                y = self.attention(nn.one_hot(conf, self.inputDim))
+
+                cache[0] = jnp.roll(cache[0], -1, axis=0)
+                cache[0] = cache[0].at[-1].set(y[idx])
+
+            return conf
+
+        keys = jax.random.split(key, batchSize + 1)
+        configs = jax.vmap(generate_sample)(keys[:-1])
+
+        if self.orbit is not None:
+            orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
+            configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s),
+                               in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
+
+        return configs
+
+
 class AFFN(nn.Module):
     """
     Autoregressive implementation of a feed forward neural network.
