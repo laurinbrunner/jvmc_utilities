@@ -39,10 +39,10 @@ class POVMCNN(nn.Module):
         features = self.features
         if type(self.features) is int:
             features = tuple([self.features] * self.depth)
-        self.cells = [CNNCell(features=features[i] if i != self.depth - 1 else self.inputDim,
-                              kernel_size=self.kernel_size, actFun=self.actFun, param_dtype=self.param_dtype,
-                              kernel_dilation=self.kernel_size[0]**i)
-                      for i in range(self.depth)]
+        self.conv_cells = [CNNCell(features=features[i] if i != self.depth - 1 else self.inputDim,
+                                   kernel_size=self.kernel_size, actFun=self.actFun, param_dtype=self.param_dtype,
+                                   kernel_dilation=self.kernel_size[0]**i)
+                           for i in range(self.depth)]
 
         self.paddings = tuple([self.kernel_size[0]] +
                               [self.kernel_size[0]**i * (self.kernel_size[0] - 1) for i in range(1, self.depth)])
@@ -71,7 +71,7 @@ class POVMCNN(nn.Module):
 
         for i in range(self.depth):
             x = jnp.pad(x, ((0, 0), (self.paddings[i], 0), (0, 0)))
-            x = self.cells[i](x)
+            x = self.conv_cells[i](x)
 
         return x[0]
 
@@ -89,7 +89,7 @@ class POVMCNN(nn.Module):
             for idx in range(self.L):
                 for i in range(self.depth):
                     x = jnp.copy(cache[i])
-                    x = self.cells[i](x)
+                    x = self.conv_cells[i](x)
 
                     if i != self.depth - 1:
                         cache[i+1] = jnp.roll(cache[i+1], -1, axis=0)
@@ -136,12 +136,12 @@ class POVMCNNGated(POVMCNN):
         if type(self.features) is int:
             features = tuple([self.features] * self.depth)
         # noinspection PyTypeChecker
-        self.cells = [GatedCNNCell(features=2 * features[i],
-                                   kernel_size=self.kernel_size, param_dtype=self.param_dtype,
-                                   kernel_dilation=self.kernel_size[0] ** i)
-                      for i in range(self.depth - 1)] + \
-                     [CNNCell(features=self.inputDim, kernel_size=self.kernel_size, param_dtype=self.param_dtype,
-                              kernel_dilation=self.kernel_size[0] ** (self.depth - 1))]
+        self.conv_cells = [GatedCNNCell(features=2 * features[i],
+                                        kernel_size=self.kernel_size, param_dtype=self.param_dtype,
+                                        kernel_dilation=self.kernel_size[0] ** i)
+                           for i in range(self.depth - 1)] + \
+                          [CNNCell(features=self.inputDim, kernel_size=self.kernel_size, param_dtype=self.param_dtype,
+                                   kernel_dilation=self.kernel_size[0] ** (self.depth - 1))]
 
         self.paddings = tuple([self.kernel_size[0]] +
                               [self.kernel_size[0] ** i * (self.kernel_size[0] - 1) for i in range(1, self.depth)])
