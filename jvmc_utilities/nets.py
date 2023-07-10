@@ -423,17 +423,19 @@ class CNNCell(nn.Module):
     :param kernel_size: size of kernel for convolution
     :param kernel_dilation: dilation of the kernel for convolution
     :param actFun: activation function acting on the output after the convolution
+    :param param_dtype: data type for network parameters
     """
 
     features: int = 8
     kernel_size: int = (2,)
     kernel_dilation: int = 1
     actFun: callable = nn.elu
+    param_dtype: type = jnp.float32
 
     @nn.compact
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         x = nn.Conv(features=self.features, kernel_size=self.kernel_size, kernel_dilation=self.kernel_dilation,
-                    padding='VALID')(x)
+                    padding='VALID', param_dtype=self.param_dtype)(x)
         x = self.actFun(x)
         return x
 
@@ -445,16 +447,18 @@ class GatedCNNCell(nn.Module):
     :param features: number of hidden units
     :param kernel_size: size of kernel for convolution
     :param kernel_dilation: dilation of the kernel for convolution
+    :param param_dtype: data type for network parameters
     """
 
     features: int = 8
     kernel_size: int = (2,)
     kernel_dilation: int = 1
+    param_dtype: type = jnp.float32
 
     @nn.compact
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         x = nn.Conv(features=self.features, kernel_size=self.kernel_size, kernel_dilation=self.kernel_dilation,
-                    padding='VALID')(x)
+                    padding='VALID', param_dtype=self.param_dtype)(x)
 
         a, g = jnp.split(x, 2, axis=-1)
         x = nn.sigmoid(g) * jnp.tanh(a)
