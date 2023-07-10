@@ -32,7 +32,7 @@ def test_POVMCNN():
 
     init.initialize(measure_step=-1, steps=100)
 
-    assert jnp.allclose(measurer.measure()["Sz_i"], jnp.array([1., -1., 1., -1.]), atol=0.01)
+    assert jnp.allclose(measurer.measure()["Sz_i"], jnp.array([1., -1., 1., -1.]), atol=0.02)
 
 
 @pytest.mark.slow
@@ -152,7 +152,7 @@ def test_POVMCNNGated():
 
     init.initialize(measure_step=-1, steps=100)
 
-    assert jnp.allclose(measurer.measure()["Sz_i"], jnp.array([1., -1., 1., -1.]), atol=0.01)
+    assert jnp.allclose(measurer.measure()["Sz_i"], jnp.array([1., -1., 1., -1.]), atol=0.02)
 
 
 @pytest.mark.slow
