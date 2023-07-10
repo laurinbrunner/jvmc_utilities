@@ -122,13 +122,13 @@ class POVMCNNGated(POVMCNN):
 
     :param L: system size
     :param kernel_size: size of kernel for convolution
-    :param kernel_dilation: dilation of the kernel for convolution
     :param features: number of hidden units
     :param inputDim: dimension of the input (4 for POVMs and 2 for spin 1/2)
     :param depth: number of NADE layers
     :param actFun: activation function to be used at the end of every layer
     :param orbit: LatticeSymmetry object that encodes all symmetry transformations applicable to the system
     :param logProbFactor: exponent of the probability (1 for POVMs and 0.5 for pure wave functions)
+    :param param_dtype: data type for network parameters
     """
 
     def setup(self) -> None:
