@@ -4,6 +4,7 @@ import numpy as np
 from flax import linen as nn
 from jVMC.util.symmetries import LatticeSymmetry
 from jax._src.prng import PRNGKeyArray
+from typing import Union, Tuple
 
 
 class POVMCNN(nn.Module):
@@ -15,30 +16,39 @@ class POVMCNN(nn.Module):
 
     :param L: system size
     :param kernel_size: size of kernel for convolution
-    :param kernel_dilation: dilation of the kernel for convolution
     :param features: number of hidden units
     :param inputDim: dimension of the input (4 for POVMs and 2 for spin 1/2)
-    :param depth: number of NADE layers
+    :param depth: number of convolutional layers
     :param actFun: activation function to be used at the end of every layer
     :param orbit: LatticeSymmetry object that encodes all symmetry transformations applicable to the system
     :param logProbFactor: exponent of the probability (1 for POVMs and 0.5 for pure wave functions)
+    :param param_dtype: data type for network parameters
     """
 
     L: int = 4
-    kernel_size: int = (2,)
-    kernel_dilation: int = 1
-    features: int = (8,)
+    kernel_size: Tuple[int] = (2,)
+    features: Union[Tuple[int], int] = 8
     inputDim: int = 4
     actFun: callable = nn.elu
     depth: int = 2
     orbit: LatticeSymmetry = None
-    logProbFactor: float = 1  # 1 for POVMs and 0.5 for pure wave functions
+    logProbFactor: float = 1.  # 1 for POVMs and 0.5 for pure wave functions
+    param_dtype: type = jnp.float32
 
     def setup(self) -> None:
-        self.cells = [CNNCell(features=self.features[i] if i != self.depth - 1 else 4, kernel_size=self.kernel_size,
-                              kernel_dilation=self.kernel_dilation*2**i if i != self.depth - 1 else 1,
-                              actFun=self.actFun)
-                      for i in range(self.depth)]
+        features = self.features
+        if type(self.features) is int:
+            features = tuple([self.features] * self.depth)
+        self.conv_cells = [CNNCell(features=features[i] if i != self.depth - 1 else self.inputDim,
+                                   kernel_size=self.kernel_size, actFun=self.actFun, param_dtype=self.param_dtype,
+                                   kernel_dilation=self.kernel_size[0]**i)
+                           for i in range(self.depth)]
+
+        self.paddings = tuple([self.kernel_size[0]] +
+                              [self.kernel_size[0]**i * (self.kernel_size[0] - 1) for i in range(1, self.depth)])
+
+        self.cache_sizes = tuple([(self.kernel_size[0], self.inputDim)] +
+                                 [(self.paddings[i] + 1, features[i - 1]) for i in range(1, self.depth)])
 
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         def evaluate(x: jnp.ndarray):
@@ -59,16 +69,9 @@ class POVMCNN(nn.Module):
     def cnn_cell(self, x: jnp.ndarray) -> jnp.ndarray:
         x = x[:-1].reshape(1, -1, self.inputDim)
 
-        for i in range(self.depth - 1):
-            pad = 2 if i == 0 else 2**i
-            x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
-
-            x = self.cells[i](x)
-
-        pad = 2 if self.depth == 0 else 1
-        x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
-
-        x = self.cells[-1](x)
+        for i in range(self.depth):
+            x = jnp.pad(x, ((0, 0), (self.paddings[i], 0), (0, 0)))
+            x = self.conv_cells[i](x)
 
         return x[0]
 
@@ -81,15 +84,12 @@ class POVMCNN(nn.Module):
             conf = jnp.zeros(self.L, dtype=np.int64)
 
             # This list caches the input to the i-th cnn layer
-            cache = [jnp.zeros(receptive_field) for receptive_field in
-                     [(2, 4) if i == 0 else
-                      ((2, self.features[i - 1]) if i == self.depth - 1
-                       else (2**i + 1, self.features[i - 1]))
-                      for i in range(self.depth)]]
+            cache = [jnp.zeros(rf) for rf in self.cache_sizes]
+
             for idx in range(self.L):
                 for i in range(self.depth):
                     x = jnp.copy(cache[i])
-                    x = self.cells[i](x)
+                    x = self.conv_cells[i](x)
 
                     if i != self.depth - 1:
                         cache[i+1] = jnp.roll(cache[i+1], -1, axis=0)
@@ -113,7 +113,7 @@ class POVMCNN(nn.Module):
         return configs
 
 
-class POVMCNNGated(nn.Module):
+class POVMCNNGated(POVMCNN):
     """
     Autoregressive implementation of a Convolutional Neural Network with a gated activation function.
 
@@ -122,40 +122,131 @@ class POVMCNNGated(nn.Module):
 
     :param L: system size
     :param kernel_size: size of kernel for convolution
-    :param kernel_dilation: dilation of the kernel for convolution
     :param features: number of hidden units
     :param inputDim: dimension of the input (4 for POVMs and 2 for spin 1/2)
     :param depth: number of NADE layers
     :param actFun: activation function to be used at the end of every layer
     :param orbit: LatticeSymmetry object that encodes all symmetry transformations applicable to the system
     :param logProbFactor: exponent of the probability (1 for POVMs and 0.5 for pure wave functions)
+    :param param_dtype: data type for network parameters
     """
 
+    def setup(self) -> None:
+        features = self.features
+        if type(self.features) is int:
+            features = tuple([self.features] * self.depth)
+        # noinspection PyTypeChecker
+        self.conv_cells = [GatedCNNCell(features=2 * features[i],
+                                        kernel_size=self.kernel_size, param_dtype=self.param_dtype,
+                                        kernel_dilation=self.kernel_size[0] ** i)
+                           for i in range(self.depth - 1)] + \
+                          [CNNCell(features=self.inputDim, kernel_size=self.kernel_size, param_dtype=self.param_dtype,
+                                   kernel_dilation=self.kernel_size[0] ** (self.depth - 1))]
+
+        self.paddings = tuple([self.kernel_size[0]] +
+                              [self.kernel_size[0] ** i * (self.kernel_size[0] - 1) for i in range(1, self.depth)])
+
+        self.cache_sizes = tuple([(self.kernel_size[0], self.inputDim)] +
+                                 [(self.paddings[i] + 1, features[i - 1]) for i in range(1, self.depth)])
+
+
+class POVMCNNResidual(POVMCNN):
+
+    def setup(self) -> None:
+        super().setup()
+        features = self.features
+        if type(self.features) is int:
+            features = tuple([self.features] * self.depth)
+        self.residual_convs = [nn.Conv(features=features[i] if i != self.depth - 1 else self.inputDim,
+                                       kernel_size=(1,), param_dtype=self.param_dtype)
+                               for i in range(self.depth)]
+
+    def cnn_cell(self, x: jnp.ndarray) -> jnp.ndarray:
+        x = x.reshape(1, -1, self.inputDim)
+        x_omitted = x[:, :-1]
+
+        for i in range(self.depth):
+            x_padded = jnp.pad(x if i != 0 else x_omitted, ((0, 0), (self.paddings[i], 0), (0, 0)))
+            x = self.actFun(self.conv_cells[i](x_padded) + self.residual_convs[i](x))
+
+        return x[0]
+
+    def sample(self, batchSize: int, key) -> jnp.ndarray:
+        """
+        This implementation is inspired by 'Fast Generation for Convolutional Autoregressive Models' (arXiv:1704.06001).
+        """
+        def generate_sample(key) -> jnp.ndarray:
+            _tmpkeys = jax.random.split(key, self.L)
+            conf = jnp.zeros(self.L, dtype=np.int64)
+
+            # This list caches the input to the i-th cnn layer
+            cache = [jnp.zeros(rf) for rf in self.cache_sizes]
+
+            for idx in range(self.L):
+                for i in range(self.depth):
+                    x = jnp.copy(cache[i])
+                    x = self.actFun(self.conv_cells[i](x) + self.residual_convs[i](x))
+
+                    if i != self.depth - 1:
+                        cache[i+1] = jnp.roll(cache[i+1], -1, axis=0)
+                        cache[i+1] = cache[i+1].at[-1].set(x[0])
+
+                new_value = jax.random.categorical(_tmpkeys[idx], nn.log_softmax(x[0].transpose()).transpose())
+                conf = conf.at[idx].set(new_value)
+                cache[0] = jnp.roll(cache[0], -1, axis=0)
+                cache[0] = cache[0].at[-1].set(nn.one_hot(new_value, self.inputDim))
+
+            return conf
+
+        keys = jax.random.split(key, batchSize+1)
+        configs = jax.vmap(generate_sample)(keys[:-1])
+
+        if self.orbit is not None:
+            orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
+            configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s),
+                               in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
+
+        return configs
+
+
+class CNNAttention(nn.Module):
     L: int = 4
-    kernel_size: int = (2,)
-    kernel_dilation: int = 1
-    features: int = (8,)
+    kernel_size: Tuple[int] = (2,)
+    features: Union[Tuple[int], int] = 8
     inputDim: int = 4
     depth: int = 2
     actFun: callable = nn.elu
     orbit: LatticeSymmetry = None
-    logProbFactor: float = 1  # 1 for POVMs and 0.5 for pure wave functions
+    logProbFactor: float = 1.  # 1 for POVMs and 0.5 for pure wave functions
+    param_dtype: type = jnp.float32
+    attention_heads: int = 1
 
     def setup(self) -> None:
-        self.cells = [GatedCNNCell(features=2*self.features[i], kernel_size=self.kernel_size,
-                                   kernel_dilation=self.kernel_dilation*2**i)
-                      for i in range(self.depth - 1)]
-        self.lastcell = CNNCell(features=4, kernel_size=self.kernel_size, kernel_dilation=1, actFun=self.actFun)
+        self.attention_mask = jnp.triu(jnp.ones((self.L, self.L), dtype=bool))
+        self.attention_module = nn.SelfAttention(num_heads=self.attention_heads, param_dtype=self.param_dtype)
+
+        self.conv_cells = [CNNCell(features=self.features if i != self.depth - 1 else self.inputDim,
+                                   kernel_size=self.kernel_size, kernel_dilation=self.kernel_size[0] ** i,
+                                   param_dtype=self.param_dtype, name=f'cnn_cell_{i}')
+                           for i in range(self.depth)]
+
+        self.paddings = tuple([self.kernel_size[0]] + [self.kernel_size[0] ** i * (self.kernel_size[0] - 1)
+                                                       for i in range(1, self.depth)])
+        self.cache_sizes = tuple([(self.kernel_size[0], self.inputDim)] +
+                                 [(self.paddings[i] + 1, self.features) for i in range(1, self.depth)])
 
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-        def evaluate(x: jnp.ndarray):
+        def evaluate(x):
             x_oh = jax.nn.one_hot(x, self.inputDim)
-            return jnp.sum(jax.nn.log_softmax(self.cnn_cell(x_oh)) * x_oh)
+
+            y = self.attention(x_oh)
+            y = self.cnn_cell(y)
+
+            return jnp.sum(jax.nn.log_softmax(y) * x_oh)
 
         if self.orbit is not None:
             # Symmetry case
             x = jax.vmap(lambda o, s: jnp.dot(o, s), in_axes=(0, None))(self.orbit.orbit, x)
-
             res = jnp.mean(jnp.exp(jax.vmap(evaluate)(x) / self.logProbFactor), axis=0)
 
             return self.logProbFactor * jnp.log(res)
@@ -163,51 +254,46 @@ class POVMCNNGated(nn.Module):
             # No symmetry case
             return evaluate(x)
 
+    def attention(self, x_oh):
+        return self.attention_module(x_oh, mask=self.attention_mask)
+
     def cnn_cell(self, x: jnp.ndarray) -> jnp.ndarray:
         x = x[:-1].reshape(1, -1, self.inputDim)
 
-        for i in range(self.depth - 1):
-            pad = 2 if i == 0 else 2**i
-            x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
-
-            x = self.cells[i](x)
-
-        pad = 2 if self.depth == 0 else 1
-        x = jnp.pad(x, ((0, 0), (pad, 0), (0, 0)))
-
-        x = self.lastcell(x)
+        for i in range(self.depth):
+            x = jnp.pad(x, ((0, 0), (self.paddings[i], 0), (0, 0)))
+            x = self.conv_cells[i](x)
 
         return x[0]
 
-    def sample(self, batchSize: int, key: PRNGKeyArray) -> jnp.ndarray:
+    def sample(self, batchSize: int, key) -> jnp.ndarray:
         """
         This implementation is inspired by 'Fast Generation for Convolutional Autoregressive Models' (arXiv:1704.06001).
         """
-        def generate_sample(key: PRNGKeyArray) -> jnp.ndarray:
+
+        def generate_sample(key):
             _tmpkeys = jax.random.split(key, self.L)
             conf = jnp.zeros(self.L, dtype=np.int64)
 
-            # This list caches the input to the i-th cnn layer
-            cache = [jnp.zeros(receptive_field) for receptive_field in
-                     [(2, 4) if i == 0 else
-                      ((2, self.features[i - 1]) if i == self.depth - 1
-                       else (2**i + 1, self.features[i - 1]))
-                      for i in range(self.depth)]]
+            cache = [jnp.zeros(rf) for rf in self.cache_sizes]
+
             for idx in range(self.L):
                 for i in range(self.depth - 1):
                     x = jnp.copy(cache[i])
-                    x = self.cells[i](x)
+                    x = self.conv_cells[i](x)
 
-                    cache[i+1] = jnp.roll(cache[i+1], -1, axis=0)
-                    cache[i+1] = cache[i+1].at[-1].set(x[0])
+                    cache[i + 1] = jnp.roll(cache[i + 1], -1, axis=0)
+                    cache[i + 1] = cache[i + 1].at[-1].set(x[0])
 
                 x = jnp.copy(cache[self.depth - 1])
-                x = self.lastcell(x)
+                x = self.conv_cells[-1](x)
 
                 new_value = jax.random.categorical(_tmpkeys[idx], nn.log_softmax(x[0].transpose()).transpose())
                 conf = conf.at[idx].set(new_value)
+                y = self.attention(nn.one_hot(conf, self.inputDim))
+
                 cache[0] = jnp.roll(cache[0], -1, axis=0)
-                cache[0] = cache[0].at[-1].set(nn.one_hot(new_value, self.inputDim))
+                cache[0] = cache[0].at[-1].set(y[idx])
 
             return conf
 
@@ -218,9 +304,72 @@ class POVMCNNGated(nn.Module):
             orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
             configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s),
                                in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
-      
+
         return configs
-            
+
+
+class CNNAttentionResidual(CNNAttention):
+
+    def setup(self) -> None:
+        super().setup()
+        features = self.features
+        if type(self.features) is int:
+            features = tuple([self.features] * self.depth)
+        self.residual_convs = [nn.Conv(features=features[i] if i != self.depth - 1 else self.inputDim,
+                                       kernel_size=(1,), param_dtype=self.param_dtype)
+                               for i in range(self.depth)]
+
+    def cnn_cell(self, x: jnp.ndarray) -> jnp.ndarray:
+        x = x.reshape(1, -1, self.inputDim)
+        x_omitted = x[:, :-1]
+
+        for i in range(self.depth):
+            x_padded = jnp.pad(x if i != 0 else x_omitted, ((0, 0), (self.paddings[i], 0), (0, 0)))
+            x = self.actFun(self.conv_cells[i](x_padded) + self.residual_convs[i](x))
+
+        return x[0]
+
+    def sample(self, batchSize: int, key) -> jnp.ndarray:
+        """
+        This implementation is inspired by 'Fast Generation for Convolutional Autoregressive Models' (arXiv:1704.06001).
+        """
+
+        def generate_sample(key):
+            _tmpkeys = jax.random.split(key, self.L)
+            conf = jnp.zeros(self.L, dtype=np.int64)
+
+            cache = [jnp.zeros(rf) for rf in self.cache_sizes]
+
+            for idx in range(self.L):
+                for i in range(self.depth - 1):
+                    x = jnp.copy(cache[i])
+                    x = self.actFun(self.conv_cells[i](x) + self.residual_convs[i](x))
+
+                    cache[i + 1] = jnp.roll(cache[i + 1], -1, axis=0)
+                    cache[i + 1] = cache[i + 1].at[-1].set(x[0])
+
+                x = jnp.copy(cache[self.depth - 1])
+                x = self.actFun(self.conv_cells[-1](x) + self.residual_convs[-1](x))
+
+                new_value = jax.random.categorical(_tmpkeys[idx], nn.log_softmax(x[0].transpose()).transpose())
+                conf = conf.at[idx].set(new_value)
+                y = self.attention(nn.one_hot(conf, self.inputDim))
+
+                cache[0] = jnp.roll(cache[0], -1, axis=0)
+                cache[0] = cache[0].at[-1].set(y[idx])
+
+            return conf
+
+        keys = jax.random.split(key, batchSize + 1)
+        configs = jax.vmap(generate_sample)(keys[:-1])
+
+        if self.orbit is not None:
+            orbitIdx = jax.random.choice(keys[-1], self.orbit.orbit.shape[0], shape=(batchSize,))
+            configs = jax.vmap(lambda k, o, s: jnp.dot(o[k], s),
+                               in_axes=(0, None, 0))(orbitIdx, self.orbit.orbit, configs)
+
+        return configs
+
 
 class AFFN(nn.Module):
     """
@@ -423,17 +572,19 @@ class CNNCell(nn.Module):
     :param kernel_size: size of kernel for convolution
     :param kernel_dilation: dilation of the kernel for convolution
     :param actFun: activation function acting on the output after the convolution
+    :param param_dtype: data type for network parameters
     """
 
     features: int = 8
     kernel_size: int = (2,)
     kernel_dilation: int = 1
     actFun: callable = nn.elu
+    param_dtype: type = jnp.float32
 
     @nn.compact
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         x = nn.Conv(features=self.features, kernel_size=self.kernel_size, kernel_dilation=self.kernel_dilation,
-                    padding='VALID')(x)
+                    padding='VALID', param_dtype=self.param_dtype)(x)
         x = self.actFun(x)
         return x
 
@@ -445,16 +596,18 @@ class GatedCNNCell(nn.Module):
     :param features: number of hidden units
     :param kernel_size: size of kernel for convolution
     :param kernel_dilation: dilation of the kernel for convolution
+    :param param_dtype: data type for network parameters
     """
 
     features: int = 8
     kernel_size: int = (2,)
     kernel_dilation: int = 1
+    param_dtype: type = jnp.float32
 
     @nn.compact
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         x = nn.Conv(features=self.features, kernel_size=self.kernel_size, kernel_dilation=self.kernel_dilation,
-                    padding='VALID')(x)
+                    padding='VALID', param_dtype=self.param_dtype)(x)
 
         a, g = jnp.split(x, 2, axis=-1)
         x = nn.sigmoid(g) * jnp.tanh(a)
