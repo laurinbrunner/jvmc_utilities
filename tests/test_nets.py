@@ -9,24 +9,16 @@ import pytest
 def test_POVMCNN():
     L = 4
 
-    cnn = jvmc_utilities.nets.POVMCNN(L=L)
+    cnn = jvmc_utilities.nets.POVMCNN(L=L, depth=2, features=4)
 
-    psi_cnn = jVMC.vqs.NQS(cnn, seed=1234)
-    psi_rnn = jVMC.util.util.init_net({"batch_size": 5000, "net1":
-        {"type": "RNN", "parameters": {"inputDim": 4, "logProbFactor": 1, "hiddenSize": 6, "L": L, "depth": 2}}},
-                                      (L,), 1234)
+    psi = jVMC.vqs.NQS(cnn, seed=1234)
 
-    sampler_cnn = jVMC.sampler.ExactSampler(psi_cnn, (L,), lDim=4, logProbFactor=1)
-    sampler_rnn = jVMC.sampler.ExactSampler(psi_rnn, (L,), lDim=4, logProbFactor=1)
-    # sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
+    sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
 
-    tdvpEquation_cnn = jVMC.util.tdvp.TDVP(sampler_cnn, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
-                                           makeReal='real', crossValidation=False)
-    tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
-                                           makeReal='real', crossValidation=False)
+    tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0, makeReal='real',
+                                       crossValidation=False)
 
     stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
-    # stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
 
     povm = jVMC.operator.POVM({"dim": "1D", "L": L})
     lind = jVMC.operator.POVMOperator(povm)
@@ -34,41 +26,29 @@ def test_POVMCNN():
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (2, 3)})
 
-    measurer_cnn = jvmc_utilities.measurement.Measurement(sampler_cnn, povm)
-    measurer_cnn.set_observables(["Sz_i"])
-    measurer_rnn = jvmc_utilities.measurement.Measurement(sampler_rnn, povm)
-    measurer_rnn.set_observables(["Sz_i"])
-    init_cnn = jvmc_utilities.time_evolve.Initializer(psi_cnn, tdvpEquation_cnn, stepper, lind, measurer=measurer_cnn)
-    init_rnn = jvmc_utilities.time_evolve.Initializer(psi_rnn, tdvpEquation_rnn, stepper, lind, measurer=measurer_rnn)
+    measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
+    measurer.set_observables(["Sz_i"])
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
 
-    init_cnn.initialize(measure_step=-1, steps=100)
-    init_rnn.initialize(measure_step=-1, steps=100)
+    init.initialize(measure_step=-1, steps=100)
 
-    assert jnp.allclose(measurer_cnn.measure()["Sz_i"], measurer_rnn.measure()["Sz_i"], atol=5E-3)
+    assert jnp.allclose(measurer.measure()["Sz_i"], jnp.array([1., -1., 1., -1.]), atol=0.01)
 
 
 @pytest.mark.slow
 def test_POVMCNNGated():
     L = 4
 
-    cnn = jvmc_utilities.nets.POVMCNNGated(L=L)
+    cnn = jvmc_utilities.nets.POVMCNNGated(L=L, depth=2, features=4)
 
-    psi_cnn = jVMC.vqs.NQS(cnn, seed=1234)
-    psi_rnn = jVMC.util.util.init_net({"batch_size": 5000, "net1":
-        {"type": "RNN", "parameters": {"inputDim": 4, "logProbFactor": 1, "hiddenSize": 6, "L": L, "depth": 2}}},
-                                      (L,), 1234)
+    psi = jVMC.vqs.NQS(cnn, seed=1234)
 
-    sampler_cnn = jVMC.sampler.ExactSampler(psi_cnn, (L,), lDim=4, logProbFactor=1)
-    sampler_rnn = jVMC.sampler.ExactSampler(psi_rnn, (L,), lDim=4, logProbFactor=1)
-    # sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
+    sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
 
-    tdvpEquation_cnn = jVMC.util.tdvp.TDVP(sampler_cnn, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
-                                           makeReal='real', crossValidation=False)
-    tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
-                                           makeReal='real', crossValidation=False)
+    tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0, makeReal='real',
+                                       crossValidation=False)
 
     stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
-    # stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
 
     povm = jVMC.operator.POVM({"dim": "1D", "L": L})
     lind = jVMC.operator.POVMOperator(povm)
@@ -76,17 +56,13 @@ def test_POVMCNNGated():
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (2, 3)})
 
-    measurer_cnn = jvmc_utilities.measurement.Measurement(sampler_cnn, povm)
-    measurer_cnn.set_observables(["Sz_i"])
-    measurer_rnn = jvmc_utilities.measurement.Measurement(sampler_rnn, povm)
-    measurer_rnn.set_observables(["Sz_i"])
-    init_cnn = jvmc_utilities.time_evolve.Initializer(psi_cnn, tdvpEquation_cnn, stepper, lind, measurer=measurer_cnn)
-    init_rnn = jvmc_utilities.time_evolve.Initializer(psi_rnn, tdvpEquation_rnn, stepper, lind, measurer=measurer_rnn)
+    measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
+    measurer.set_observables(["Sz_i"])
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
 
-    init_cnn.initialize(measure_step=-1, steps=100)
-    init_rnn.initialize(measure_step=-1, steps=100)
+    init.initialize(measure_step=-1, steps=100)
 
-    assert jnp.allclose(measurer_cnn.measure()["Sz_i"], measurer_rnn.measure()["Sz_i"], atol=5E-3)
+    assert jnp.allclose(measurer.measure()["Sz_i"], jnp.array([1., -1., 1., -1.]), atol=0.01)
 
 
 @pytest.mark.slow
@@ -95,22 +71,14 @@ def test_DeepNade():
 
     nade = jvmc_utilities.nets.DeepNADE(L=L, depth=1)
 
-    psi_nade = jVMC.vqs.NQS(nade, seed=1234)
-    psi_rnn = jVMC.util.util.init_net({"batch_size": 5000, "net1":
-        {"type": "RNN", "parameters": {"inputDim": 4, "logProbFactor": 1, "hiddenSize": 6, "L": L, "depth": 2}}},
-                                      (L,), 1234)
+    psi = jVMC.vqs.NQS(nade, seed=1234)
 
-    sampler_nade = jVMC.sampler.ExactSampler(psi_nade, (L,), lDim=4, logProbFactor=1)
-    sampler_rnn = jVMC.sampler.ExactSampler(psi_rnn, (L,), lDim=4, logProbFactor=1)
-    # sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
+    sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
 
-    tdvpEquation_nade = jVMC.util.tdvp.TDVP(sampler_nade, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
-                                            makeReal='real', crossValidation=False)
-    tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
-                                           makeReal='real', crossValidation=False)
+    tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0, makeReal='real',
+                                       crossValidation=False)
 
     stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
-    # stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
 
     povm = jVMC.operator.POVM({"dim": "1D", "L": L})
     lind = jVMC.operator.POVMOperator(povm)
@@ -118,18 +86,13 @@ def test_DeepNade():
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (2, 3)})
 
-    measurer_nade = jvmc_utilities.measurement.Measurement(sampler_nade, povm)
-    measurer_nade.set_observables(["Sz_i"])
-    measurer_rnn = jvmc_utilities.measurement.Measurement(sampler_rnn, povm)
-    measurer_rnn.set_observables(["Sz_i"])
-    init_nade = jvmc_utilities.time_evolve.Initializer(psi_nade, tdvpEquation_nade, stepper, lind,
-                                                       measurer=measurer_nade)
-    init_rnn = jvmc_utilities.time_evolve.Initializer(psi_rnn, tdvpEquation_rnn, stepper, lind, measurer=measurer_rnn)
+    measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
+    measurer.set_observables(["Sz_i"])
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
 
-    init_nade.initialize(measure_step=-1, steps=100)
-    init_rnn.initialize(measure_step=-1, steps=100)
+    init.initialize(measure_step=-1, steps=100)
 
-    assert jnp.allclose(measurer_nade.measure()["Sz_i"], measurer_rnn.measure()["Sz_i"], atol=5E-3)
+    assert jnp.allclose(measurer.measure()["Sz_i"], jnp.array([1., -1., 1., -1.]), atol=0.01)
 
 
 @pytest.mark.slow
@@ -139,21 +102,13 @@ def test_AFFN():
     affn = jvmc_utilities.nets.AFFN(L=L, depth=1)
 
     psi_affn = jVMC.vqs.NQS(affn, seed=1234)
-    psi_rnn = jVMC.util.util.init_net({"batch_size": 5000, "net1":
-        {"type": "RNN", "parameters": {"inputDim": 4, "logProbFactor": 1, "hiddenSize": 6, "L": L, "depth": 2}}},
-                                      (L,), 1234)
 
     sampler_affn = jVMC.sampler.ExactSampler(psi_affn, (L,), lDim=4, logProbFactor=1)
-    sampler_rnn = jVMC.sampler.ExactSampler(psi_rnn, (L,), lDim=4, logProbFactor=1)
-    # sampler = jVMC.sampler.MCSampler(psi, (L,), prngkey, numSamples=2000)
 
     tdvpEquation_affn = jVMC.util.tdvp.TDVP(sampler_affn, rhsPrefactor=-1.,
-                                       svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
-    tdvpEquation_rnn = jVMC.util.tdvp.TDVP(sampler_rnn, rhsPrefactor=-1.,
-                                           svdTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
+                                       pinvTol=1e-6, diagonalShift=0, makeReal='real', crossValidation=False)
 
     stepper = jVMC.util.stepper.Euler(timeStep=1e-2)
-    # stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=1e-3, tol=1E-6)
 
     povm = jVMC.operator.POVM({"dim": "1D", "L": L})
     lind = jVMC.operator.POVMOperator(povm)
@@ -163,16 +118,12 @@ def test_AFFN():
 
     measurer_affn = jvmc_utilities.measurement.Measurement(sampler_affn, povm)
     measurer_affn.set_observables(["Sz_i"])
-    measurer_rnn = jvmc_utilities.measurement.Measurement(sampler_rnn, povm)
-    measurer_rnn.set_observables(["Sz_i"])
     init_affn = jvmc_utilities.time_evolve.Initializer(psi_affn, tdvpEquation_affn, stepper, lind,
                                                        measurer=measurer_affn)
-    init_rnn = jvmc_utilities.time_evolve.Initializer(psi_rnn, tdvpEquation_rnn, stepper, lind, measurer=measurer_rnn)
 
     init_affn.initialize(measure_step=-1, steps=100)
-    init_rnn.initialize(measure_step=-1, steps=100)
 
-    assert jnp.allclose(measurer_affn.measure()["Sz_i"], measurer_rnn.measure()["Sz_i"], atol=5E-3)
+    assert jnp.allclose(measurer_affn.measure()["Sz_i"], jnp.array([1., -1., 1., -1.]), atol=0.01)
 
 
 @pytest.mark.slow
