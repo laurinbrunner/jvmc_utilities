@@ -588,7 +588,7 @@ class TimeEvolver:
                 else:
                     hparams[k] = "symmetric"
             else:
-                hparams[k] = net_params[k]
+                hparams[k] = str(net_params[k])
 
         if type(self.tdvpEquation.sampler) is jVMC.sampler.MCSampler:
             hparams["sample_size"] = self.tdvpEquation.sampler.numSamples
