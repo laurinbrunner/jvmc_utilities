@@ -162,12 +162,11 @@ class POVMCNNResidual(POVMCNN):
                                for i in range(self.depth)]
 
     def cnn_cell(self, x: jnp.ndarray) -> jnp.ndarray:
-        x = x.reshape(1, -1, self.inputDim)
-        x_omitted = x[:, :-1]
+        x = x.reshape(1, -1, self.inputDim)[:, :-1]
 
         for i in range(self.depth):
-            x_padded = jnp.pad(x if i != 0 else x_omitted, ((0, 0), (self.paddings[i], 0), (0, 0)))
-            x = self.actFun(self.conv_cells[i](x_padded) + self.residual_convs[i](x))
+            x_padded = jnp.pad(x, ((0, 0), (self.paddings[i], 0), (0, 0)))
+            x = self.actFun(self.conv_cells[i](x_padded) + self.residual_convs[i](x if i != 0 else x_padded[:, 1:]))
 
         return x[0]
 
@@ -185,7 +184,7 @@ class POVMCNNResidual(POVMCNN):
             for idx in range(self.L):
                 for i in range(self.depth):
                     x = jnp.copy(cache[i])
-                    x = self.actFun(self.conv_cells[i](x) + self.residual_convs[i](x))
+                    x = self.actFun(self.conv_cells[i](x) + self.residual_convs[i](x[-1].reshape(1, -1)))
 
                     if i != self.depth - 1:
                         cache[i+1] = jnp.roll(cache[i+1], -1, axis=0)
