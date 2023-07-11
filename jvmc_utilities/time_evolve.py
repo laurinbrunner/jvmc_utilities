@@ -28,19 +28,24 @@ class Initializer:
             stepper: Union[jVMC.util.Euler, jVMC.util.AdaptiveHeun],
             lindbladian: jVMC.operator.POVMOperator,
             measurer: Optional[Measurement] = None,
-            sampler: Optional[Union[jVMC.sampler.MCSampler, jVMC.sampler.ExactSampler]] = None,
-            povm: Optional[jVMC.operator.POVM] = None
+            max_iterations: int = 2000
     ) -> None:
+        """
+        Class for learning the steady state of a Lindbladian.
+
+        :param psi: `NQS` object representing the state.
+        :param tdvpEquation: `TDVP` object for time evolution.
+        :param stepper: `Stepper` object for time evolution.
+        :param lindbladian: `POVMOperator` object representing the Lindbladian.
+        :param measurer: `Measurement` object for measuring observables during steady state search.
+        :param max_iterations: Maximum number of iterations in the convergence case.
+        """
         self.psi = psi
         self.tdvpEquation = tdvpEquation
         self.stepper = stepper
         self.lindbladian = lindbladian
         self.measurer = measurer
-        if sampler is not None and povm is not None:
-            self.conv_measurer = Measurement(sampler, povm)
-        else:
-            self.conv_measurer = None
-        self.max_conv_steps = 10
+        self.max_iterations = max_iterations
 
         self.iteration_count = 0
         self.times = jnp.array([0.])
@@ -63,8 +68,7 @@ class Initializer:
             measure_step: int = 0,
             steps: int = 300,
             convergence: bool = False,
-            atol: float = 1E-5,
-            conv_obs: str = "Sz_i"
+            atol: float = 1E-2
     ) -> None:
         """
         Calculates time evolution for a given Lindbladian to obtain its steady state after a set number of `steps`.
@@ -75,25 +79,22 @@ class Initializer:
 
         :param measure_step: Number of steps between measurements. If negative no measurements are performed at all.
         :param steps: Number of time steps.
-        :param convergence: Convergence mode time evolves state until specified observable no longer changes. In
-        convergence mode the steps parameter will be ignored. Be careful, this does not mean that the state converged
-        to the correct steady state, only that it converged to some state.
+        :param convergence: Convergence mode time evolves state until `ElocVar0` of `tdvpEquation` object is smaller
+        than `atol` parameter. In convergence mode the steps parameter will be ignored. Be careful, this does not mean
+        that the state converged to the correct steady state, only that it converged to some state.
         :param atol: Absolute tolerance for convergence mode.
         :param conv_obs: Observable that will be checked for convergence. Default is "Sz_i".
 
         :raises: ValueError
         """
         if convergence:
-            if self.conv_measurer is None:
-                raise ValueError(f"No POVM or no sampler defined!")
-            self.conv_measurer.set_observables([conv_obs])
             if measure_step >= 0:
                 if self.measurer is None:
                     raise ValueError(f"Trying to measure every {measure_step} steps while no measurer has been defined "
                                      f"for this initializer.")
-                self.__with_measurement_with_conv(measure_step=measure_step, atol=atol, conv_obs=conv_obs)
+                self.__with_measurement_with_conv(measure_step=measure_step, atol=atol)
             else:
-                self.__no_measurement_with_conv(atol=atol, conv_obs=conv_obs)
+                self.__no_measurement_with_conv(atol=atol)
         else:
             if measure_step >= 0:
                 if self.measurer is None:
@@ -103,11 +104,8 @@ class Initializer:
             else:
                 self.__no_measurements_no_conv(steps=steps)
 
-    def __no_measurement_with_conv(self, atol: float, conv_obs: str) -> None:
-        prev_res = self.conv_measurer.measure()[conv_obs]
-
-        conv_steps = 0
-        while True:
+    def __no_measurement_with_conv(self, atol: float) -> None:
+        for _ in range(self.max_iterations):
             dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                        psi=self.psi)
 
@@ -117,19 +115,12 @@ class Initializer:
 
             self.psi.set_parameters(dp)
 
-            if conv_steps == self.max_conv_steps:
-                curr_res = self.conv_measurer.measure()[conv_obs]
-                diff = self.__convergence_function(prev_res, curr_res)
-                if diff < atol:
-                    break
-                prev_res = curr_res
-                conv_steps = 0
-            else:
-                conv_steps += 1
+            if self.tdvpEquation.ElocVar0 < atol:
+                break
 
-    def __with_measurement_with_conv(self, measure_step: int, atol: float, conv_obs: str) -> None:
-        prev_res = self.conv_measurer.measure()[conv_obs]
+        warnings.warn(f"Initializer did not converge in {self.max_iterations} iterations.", ConvergenceWarning)
 
+    def __with_measurement_with_conv(self, measure_step: int, atol: float) -> None:
         results = {obs: [] for obs in self.measurer.observables}
         times = []
 
@@ -141,8 +132,7 @@ class Initializer:
             # This try block ensures that the results are saved to the object variables even when the initialisation
             # is cancelled early, either from outside or through a convergence problem
             measure_counter = 0
-            conv_steps = 0
-            while True:
+            for _ in range(self.max_iterations):
                 dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
                                            hamiltonian=self.lindbladian, psi=self.psi)
 
@@ -159,15 +149,11 @@ class Initializer:
                 else:
                     measure_counter += 1
 
-                if conv_steps == self.max_conv_steps:
-                    curr_res = self.conv_measurer.measure()[conv_obs]
-                    diff = self.__convergence_function(prev_res, curr_res)
-                    if diff < atol:
-                        break
-                    prev_res = curr_res
-                    conv_steps = 0
-                else:
-                    conv_steps += 1
+                if self.tdvpEquation.ElocVar0 < atol:
+                    break
+
+            warnings.warn(f"Initializer did not converge in {self.max_iterations} iterations.", ConvergenceWarning)
+
         finally:
             # Make sure that measurement is done on the converged state
             if measure_counter != 0:
