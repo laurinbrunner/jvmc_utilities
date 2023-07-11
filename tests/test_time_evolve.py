@@ -97,17 +97,13 @@ def test_no_measurement_with_convergence():
     jvmc_utilities.operators.initialisation_operators(povm)
     lind = jVMC.operator.POVMOperator(povm)
     lind.add({"name": "updown_dis", "strength": 5.0, "sites": (0, 1)})
-    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, povm=povm, sampler=sampler)
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind)
 
-    init.initialize(convergence=True, atol=1E-5, measure_step=-1)
+    init.initialize(convergence=True, atol=1E-2, measure_step=-1)
+    measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
+    measurer.set_observables(["Sz_i"])
 
-    res1 = init.conv_measurer.measure()["Sz_i"]
-
-    init.initialize(convergence=True, atol=1E-5, measure_step=-1)
-
-    res2 = init.conv_measurer.measure()["Sz_i"]
-
-    assert jnp.sqrt(jnp.mean(jnp.abs(res1 - res2)**2))
+    assert jnp.allclose(measurer.measure()["Sz_i"], jnp.array([1, -1]), atol=1E-2)
 
 
 def test_with_measurement_with_convergence(setup_updown):
@@ -119,10 +115,9 @@ def test_with_measurement_with_convergence(setup_updown):
     lind.add({"name": "downdown_dis", "strength": 1.0, "sites": (0, 1)})
     measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
     measurer.set_observables(["Sz_i", "N"])
-    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer,
-                                                 povm=povm, sampler=sampler)
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer)
 
-    init.initialize(convergence=True, atol=1E-5)
+    init.initialize(convergence=True, atol=1E-2)
     steps = len(init.times)
 
     rho_t = jnp.zeros((4, 4, steps))
