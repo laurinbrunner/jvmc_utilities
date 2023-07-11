@@ -277,15 +277,13 @@ class CNNAttention(nn.Module):
             cache = [jnp.zeros(rf) for rf in self.cache_sizes]
 
             for idx in range(self.L):
-                for i in range(self.depth - 1):
+                for i in range(self.depth):
                     x = jnp.copy(cache[i])
                     x = self.conv_cells[i](x)
 
-                    cache[i + 1] = jnp.roll(cache[i + 1], -1, axis=0)
-                    cache[i + 1] = cache[i + 1].at[-1].set(x[0])
-
-                x = jnp.copy(cache[self.depth - 1])
-                x = self.conv_cells[-1](x)
+                    if i != self.depth - 1:
+                        cache[i + 1] = jnp.roll(cache[i + 1], -1, axis=0)
+                        cache[i + 1] = cache[i + 1].at[-1].set(x[0])
 
                 new_value = jax.random.categorical(_tmpkeys[idx], nn.log_softmax(x[0].transpose()).transpose())
                 conf = conf.at[idx].set(new_value)
@@ -319,12 +317,11 @@ class CNNAttentionResidual(CNNAttention):
                                for i in range(self.depth)]
 
     def cnn_cell(self, x: jnp.ndarray) -> jnp.ndarray:
-        x = x.reshape(1, -1, self.inputDim)
-        x_omitted = x[:, :-1]
+        x = x.reshape(1, -1, self.inputDim)[:, :-1]
 
         for i in range(self.depth):
-            x_padded = jnp.pad(x if i != 0 else x_omitted, ((0, 0), (self.paddings[i], 0), (0, 0)))
-            x = self.actFun(self.conv_cells[i](x_padded) + self.residual_convs[i](x))
+            x_padded = jnp.pad(x, ((0, 0), (self.paddings[i], 0), (0, 0)))
+            x = self.actFun(self.conv_cells[i](x_padded) + self.residual_convs[i](x if i != 0 else x_padded[:, 1:]))
 
         return x[0]
 
@@ -340,15 +337,13 @@ class CNNAttentionResidual(CNNAttention):
             cache = [jnp.zeros(rf) for rf in self.cache_sizes]
 
             for idx in range(self.L):
-                for i in range(self.depth - 1):
+                for i in range(self.depth):
                     x = jnp.copy(cache[i])
-                    x = self.actFun(self.conv_cells[i](x) + self.residual_convs[i](x))
+                    x = self.actFun(self.conv_cells[i](x) + self.residual_convs[i](x[-1].reshape(1, -1)))
 
-                    cache[i + 1] = jnp.roll(cache[i + 1], -1, axis=0)
-                    cache[i + 1] = cache[i + 1].at[-1].set(x[0])
-
-                x = jnp.copy(cache[self.depth - 1])
-                x = self.actFun(self.conv_cells[-1](x) + self.residual_convs[-1](x))
+                    if i != self.depth - 1:
+                        cache[i + 1] = jnp.roll(cache[i + 1], -1, axis=0)
+                        cache[i + 1] = cache[i + 1].at[-1].set(x[0])
 
                 new_value = jax.random.categorical(_tmpkeys[idx], nn.log_softmax(x[0].transpose()).transpose())
                 conf = conf.at[idx].set(new_value)
