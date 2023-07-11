@@ -221,7 +221,7 @@ class CNNAttention(nn.Module):
     attention_heads: int = 1
 
     def setup(self) -> None:
-        self.attention_mask = jnp.triu(jnp.ones((self.L, self.L), dtype=bool))
+        self.attention_mask = jnp.tril(jnp.ones((self.L, self.L), dtype=bool))
         self.attention_module = nn.SelfAttention(num_heads=self.attention_heads, param_dtype=self.param_dtype)
 
         self.conv_cells = [CNNCell(features=self.features if i != self.depth - 1 else self.inputDim,
