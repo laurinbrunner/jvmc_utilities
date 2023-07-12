@@ -91,7 +91,7 @@ def test_aqi_model_operators():
 def test_efficient_povm_operator():
     net = nets.DeepNADE(L=4, depth=1, hiddenSize=8)
     psi = jVMC.vqs.NQS(net, seed=1234, batchSize=5000)
-    povm = jVMC.operator.POVM({"dim": "1D", "L": 2})
+    povm = jVMC.operator.POVM({"dim": "1D", "L": 4})
     aqi_model_operators(povm)
 
     sampler = jVMC.sampler.MCSampler(psi, (4,), jax.random.PRNGKey(1234), numSamples=1000)
@@ -115,7 +115,7 @@ def test_efficient_povm_operator():
 def test_efficient_povm_operator_batched():
     net = nets.DeepNADE(L=4, depth=1, hiddenSize=8)
     psi = jVMC.vqs.NQS(net, seed=1234, batchSize=5000)
-    povm = jVMC.operator.POVM({"dim": "1D", "L": 2})
+    povm = jVMC.operator.POVM({"dim": "1D", "L": 4})
     aqi_model_operators(povm)
 
     sampler = jVMC.sampler.MCSampler(psi, (4,), jax.random.PRNGKey(1234), numSamples=1000)
