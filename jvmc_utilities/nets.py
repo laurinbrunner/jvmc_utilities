@@ -166,7 +166,7 @@ class POVMCNNResidual(POVMCNN):
 
         for i in range(self.depth):
             x_padded = jnp.pad(x, ((0, 0), (self.paddings[i], 0), (0, 0)))
-            x = self.actFun(self.conv_cells[i](x_padded) + self.residual_convs[i](x if i != 0 else x_padded[:, 1:]))
+            x = self.actFun(self.conv_cells[i](x_padded) + self.residual_convs[i](x if i != 0 else x_padded[:, (self.kernel_size[0]-1):]))
 
         return x[0]
 
@@ -321,7 +321,7 @@ class CNNAttentionResidual(CNNAttention):
 
         for i in range(self.depth):
             x_padded = jnp.pad(x, ((0, 0), (self.paddings[i], 0), (0, 0)))
-            x = self.actFun(self.conv_cells[i](x_padded) + self.residual_convs[i](x if i != 0 else x_padded[:, 1:]))
+            x = self.actFun(self.conv_cells[i](x_padded) + self.residual_convs[i](x if i != 0 else x_padded[:, (self.kernel_size[0] - 1):]))
 
         return x[0]
 
