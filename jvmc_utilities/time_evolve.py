@@ -118,7 +118,8 @@ class Initializer:
             if self.tdvpEquation.ElocVar0 < atol:
                 break
 
-        warnings.warn(f"Initializer did not converge in {self.max_iterations} iterations.", ConvergenceWarning)
+        if _ == self.max_iterations - 1:
+            warnings.warn(f"Initializer did not converge in {self.max_iterations} iterations.", ConvergenceWarning)
 
     def __with_measurement_with_conv(self, measure_step: int, atol: float) -> None:
         results = {obs: [] for obs in self.measurer.observables}
@@ -152,7 +153,8 @@ class Initializer:
                 if self.tdvpEquation.ElocVar0 < atol:
                     break
 
-            warnings.warn(f"Initializer did not converge in {self.max_iterations} iterations.", ConvergenceWarning)
+            if _ == self.max_iterations - 1:
+                warnings.warn(f"Initializer did not converge in {self.max_iterations} iterations.", ConvergenceWarning)
 
         finally:
             # Make sure that measurement is done on the converged state
