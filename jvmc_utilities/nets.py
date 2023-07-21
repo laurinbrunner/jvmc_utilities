@@ -478,11 +478,14 @@ class DeepNADE(nn.Module):
     actFun: callable = nn.elu
     orbit: LatticeSymmetry = None
     logProbFactor: float = 1.  # 1 for POVMs and 0.5 for pure wave functions
+    param_dtype: type = jnp.float32
 
     def setup(self) -> None:
-        self.deep_layers = [[nn.Dense(features=self.hiddenSize, use_bias=True if (i == 0 and _ == 0) else False)
+        self.deep_layers = [[nn.Dense(features=self.hiddenSize, use_bias=True if (i == 0 and _ == 0) else False,
+                                      param_dtype=self.param_dtype)
                              for i in range(self.depth)] for _ in range(self.L)]
-        self.last_layer = [nn.Dense(features=self.inputDim, use_bias=True) for _ in range(self.L)]
+        self.last_layer = [nn.Dense(features=self.inputDim, use_bias=True, param_dtype=self.param_dtype)
+                           for _ in range(self.L)]
 
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         def evaluate(x: jnp.ndarray) -> jnp.ndarray:
@@ -500,11 +503,11 @@ class DeepNADE(nn.Module):
             return evaluate(x)
 
     def nade_cell(self, x: jnp.ndarray) -> jnp.ndarray:
-        p = jnp.zeros_like(x, dtype=np.float32)
+        p = jnp.zeros_like(x, dtype=self.param_dtype)
         x = x[:-1].reshape(1, -1, self.inputDim)
 
         x = jnp.pad(x, ((0, 0), (1, 0), (0, 0)))
-        a = jnp.zeros((self.depth, self.hiddenSize))
+        a = jnp.zeros((self.depth, self.hiddenSize), dtype=self.param_dtype)
         for idx in range(self.L):
             da = x[0, idx]
             for i in range(self.depth):
@@ -525,8 +528,8 @@ class DeepNADE(nn.Module):
         def generate_sample(key: PRNGKeyArray) -> jnp.ndarray:
             _tmpkeys = jax.random.split(key, self.L)
 
-            conf = jnp.zeros(self.L, dtype=int)
-            a = jnp.zeros((self.depth, self.hiddenSize))
+            conf = jnp.zeros(self.L, dtype=np.uint8)
+            a = jnp.zeros((self.depth, self.hiddenSize), dtype=self.param_dtype)
             previous_site = jnp.zeros(self.inputDim)
             for idx in range(self.L):
                 da = previous_site
