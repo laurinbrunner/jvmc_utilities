@@ -16,4 +16,4 @@ def get_orbit_aqi_translation(L):
 
     translations = jnp.array(translations)
 
-    return LatticeSymmetry(translations.reshape(-1, 2*L, 2*L).astype(np.int32), jnp.ones(L))
+    return LatticeSymmetry(translations.reshape(-1, 2*L, 2*L).astype(np.uint8), jnp.ones(L))
