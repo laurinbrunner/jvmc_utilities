@@ -138,10 +138,6 @@ class EfficientPOVMOperator(jvmcop.POVMOperator):
     More efficient implementation of the POVMOperator class, that only evaluates the s_prime configurations that have a
     non-zero weight.
     """
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.multiplicators = 4**jnp.arange(self.povm.system_data["L"])
-        self.pmapd_conf_to_num = global_defs.pmap_for_my_devices(lambda confs: jax.vmap(lambda s: jnp.sum(s * self.multiplicators), in_axes=(0))(confs))
 
     def get_O_loc(self, samples, psi, logPsiS=None, *args):
         """Compute :math:`O_{loc}(s)`.
@@ -167,10 +163,11 @@ class EfficientPOVMOperator(jvmcop.POVMOperator):
         else:
             sp, matEl = self.get_s_primes(samples, *args)
 
-            sp_numbers = self.pmapd_conf_to_num(sp)
-            _, pre_idx, rep_idx = jnp.unique(sp_numbers, return_index=True, return_inverse=True)
+            logPsiSP = jnp.zeros((sp.shape[0], sp.shape[1]), dtype=logPsiS.dtype)
+            nonzero_idx = jnp.where(jnp.logical_not(jnp.isclose(matEl.reshape(matEl.shape[0], -1), 0)))[0]
+            logPsiSP = logPsiSP.at[nonzero_idx].set(psi(sp[nonzero_idx].reshape(1, -1, sp.shape[-1])).reshape(-1))
 
-            return self.get_O_loc_unbatched(logPsiS, psi(sp[:, pre_idx, :][:, rep_idx]))
+            return self.get_O_loc_unbatched(logPsiS, logPsiSP)
 
     def get_O_loc_batched(self, samples, psi, logPsiS, batchSize, *args):
         """Compute :math:`O_{loc}(s)` in batches.
@@ -208,10 +205,11 @@ class EfficientPOVMOperator(jvmcop.POVMOperator):
 
             sp, matEl = self.get_s_primes(batch, *args)
 
-            sp_numbers = self.pmapd_conf_to_num(sp)
-            _, pre_idx, rep_idx = jnp.unique(sp_numbers, return_index=True, return_inverse=True)
+            logPsiSP = jnp.zeros((sp.shape[0], sp.shape[1]), dtype=jnp.float64)
+            nonzero_idx = jnp.where(jnp.logical_not(jnp.isclose(matEl.reshape(matEl.shape[0], -1), 0)))
+            logPsiSP = logPsiSP.at[nonzero_idx].set(psi(sp[nonzero_idx].reshape(1, -1, sp.shape[-1])).reshape(-1))
 
-            OlocBatch = self.get_O_loc_unbatched(logPsiSbatch, psi(sp[:, pre_idx, :][:, rep_idx]))
+            OlocBatch = self.get_O_loc_unbatched(logPsiSbatch, logPsiSP)
 
             if Oloc is None:
                 if OlocBatch.dtype == global_defs.tCpx:
@@ -231,10 +229,11 @@ class EfficientPOVMOperator(jvmcop.POVMOperator):
 
             sp, matEl = self.get_s_primes(batch, *args)
 
-            sp_numbers = self.pmapd_conf_to_num(sp)
-            _, pre_idx, rep_idx = jnp.unique(sp_numbers, return_index=True, return_inverse=True)
+            logPsiSP = jnp.zeros((sp.shape[0], sp.shape[1]), dtype=jnp.float64)
+            nonzero_idx = jnp.where(jnp.logical_not(jnp.isclose(matEl.reshape(matEl.shape[0], -1), 0)))
+            logPsiSP = logPsiSP.at[nonzero_idx].set(psi(sp[nonzero_idx].reshape(1, -1, sp.shape[-1])).reshape(-1))
 
-            OlocBatch = self.get_O_loc_unbatched(logPsiSbatch, psi(sp[:, pre_idx, :][:, rep_idx]))
+            OlocBatch = self.get_O_loc_unbatched(logPsiSbatch, logPsiSP)
 
             OlocBatch = self._get_Oloc_slice_pmapd(OlocBatch, 0, remainder)
 
