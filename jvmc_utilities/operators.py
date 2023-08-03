@@ -164,7 +164,7 @@ class EfficientPOVMOperator(jvmcop.POVMOperator):
             sp, matEl = self.get_s_primes(samples, *args)
 
             logPsiSP = jnp.zeros((sp.shape[0], sp.shape[1]), dtype=logPsiS.dtype)
-            nonzero_idx = jnp.where(jnp.logical_not(jnp.isclose(matEl.reshape(matEl.shape[0], -1), 0)))[0]
+            nonzero_idx = jnp.where(jnp.logical_not(jnp.isclose(matEl.reshape(matEl.shape[0], -1), 0)))
             logPsiSP = logPsiSP.at[nonzero_idx].set(psi(sp[nonzero_idx].reshape(1, -1, sp.shape[-1])).reshape(-1))
 
             return self.get_O_loc_unbatched(logPsiS, logPsiSP)
@@ -205,7 +205,7 @@ class EfficientPOVMOperator(jvmcop.POVMOperator):
 
             sp, matEl = self.get_s_primes(batch, *args)
 
-            logPsiSP = jnp.zeros((sp.shape[0], sp.shape[1]), dtype=jnp.float64)
+            logPsiSP = jnp.zeros((sp.shape[0], sp.shape[1]), dtype=logPsiS.dtype)
             nonzero_idx = jnp.where(jnp.logical_not(jnp.isclose(matEl.reshape(matEl.shape[0], -1), 0)))
             logPsiSP = logPsiSP.at[nonzero_idx].set(psi(sp[nonzero_idx].reshape(1, -1, sp.shape[-1])).reshape(-1))
 
@@ -229,7 +229,7 @@ class EfficientPOVMOperator(jvmcop.POVMOperator):
 
             sp, matEl = self.get_s_primes(batch, *args)
 
-            logPsiSP = jnp.zeros((sp.shape[0], sp.shape[1]), dtype=jnp.float64)
+            logPsiSP = jnp.zeros((sp.shape[0], sp.shape[1]), dtype=logPsiS.dtype)
             nonzero_idx = jnp.where(jnp.logical_not(jnp.isclose(matEl.reshape(matEl.shape[0], -1), 0)))
             logPsiSP = logPsiSP.at[nonzero_idx].set(psi(sp[nonzero_idx].reshape(1, -1, sp.shape[-1])).reshape(-1))
 
