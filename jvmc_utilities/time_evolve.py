@@ -430,6 +430,17 @@ class TimeEvolver:
                     writedict_time[f"N_l_MC_error/{l}_up"] = results["N_i_MC_error"][2*l]
                     writedict_time[f"N_l_MC_error/{l}_down"] = results["N_i_MC_error"][2*l+1]
                     writedict_time[f"M_l_MC_error/{l}"] = results["N_i_MC_error"][2*l] - results["N_i_MC_error"][2*l+1]
+        if "n_corr" in results.keys():
+            system_L = results["N_i"].shape[0] // 2
+            n_corr = results["n_corr"][::2, ::2] + results["n_corr"][1::2, 1::2] + results["n_corr"][::2, 1::2]\
+                     + results["n_corr"][1::2, ::2]
+            for i in range(system_L):
+                for j in range(system_L):
+                    writedict_time[f"n_corr/{i},{j}"] = n_corr[i, j]
+                    writedict_time[f"n_spin_corr/uu{i},{j}"] = results["n_corr"][2*i, 2*j]
+                    writedict_time[f"n_spin_corr/dd{i},{j}"] = results["n_corr"][2*i+1, 2*j+1]
+                    writedict_time[f"n_spin_corr/ud{i},{j}"] = results["n_corr"][2*i, 2*j+1]
+                    writedict_time[f"n_spin_corr/du{i},{j}"] = results["n_corr"][2*i+1, 2*j]
 
         # Write meta data
         writedict_index["t"] = t
