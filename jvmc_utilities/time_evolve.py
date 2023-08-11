@@ -581,7 +581,7 @@ class TimeEvolver:
             if k in ["name", "parent", "_state", "_id"]:
                 continue
             elif k == "actFun":
-                if type(hparams[k]) is tuple:
+                if type(net_params[k]) is tuple:
                     hparams[k] = net_params[k][0].__name__
                 else:
                     hparams[k] = net_params[k].__name__
