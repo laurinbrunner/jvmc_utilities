@@ -145,6 +145,7 @@ class Measurement:
         self.confs, _, self.probs = self.sampler.sample()
 
         self.calculated_n = False
+        self.calculated_n_corr = False
         results = {}
         for obs in self.observables:
             results[obs] = self.observables_functions[obs]()
