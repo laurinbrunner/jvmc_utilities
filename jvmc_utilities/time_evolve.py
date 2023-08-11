@@ -581,7 +581,10 @@ class TimeEvolver:
             if k in ["name", "parent", "_state", "_id"]:
                 continue
             elif k == "actFun":
-                hparams[k] = net_params[k].__name__
+                if type(hparams[k]) is tuple:
+                    hparams[k] = net_params[k][0].__name__
+                else:
+                    hparams[k] = net_params[k].__name__
             elif k == "orbit":
                 if net_params[k] is None:
                     hparams[k] = "not symmetric"
