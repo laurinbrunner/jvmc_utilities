@@ -51,13 +51,16 @@ def test_M_sq(setup_method):
     assert (jnp.allclose(results["M_sq"], 1, atol=1E-3))
 
 
-def test_M_sq_2(setup_method):
+def test_n_corr(setup_method):
     sampler, povm = setup_method
     measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
-    measurer.set_observables(["M_sq"])
+    measurer.set_observables(["n_corr"])
     results = measurer.measure()
 
-    assert (jnp.allclose(results["M_sq"], 1, atol=1E-3))
+    assert (jnp.allclose(results["n_corr"], jnp.array([[1, 0, 1, 0],
+                                                       [0, 0, 0, 0],
+                                                       [1, 0, 1, 0],
+                                                       [0, 0, 0, 0]]), atol=1E-3))
 
 
 def test_MC_error():

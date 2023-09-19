@@ -564,6 +564,43 @@ class DeepNADE(nn.Module):
         return configs
 
 
+class MCMC_CNN(nn.Module):
+    """
+    Convolutional Neural Network for POVM in the MCMC framework.
+
+    :param inputDim: dimension of the input space
+    :param kernel_size: size of the convolutional kernel
+    :param features: number of features in the convolutional layer
+    :param prefeatures: number of features in the pre-convolutional layer
+    :param depth: number of convolutional layers
+    :param actFun: activation function
+    :param use_bias: whether to use bias in the convolutional layers
+    :param param_dtype: datatype of the parameters
+    """
+    inputDim: int = 4
+    kernel_size: Tuple[int] = (2,)
+    features: int = 8
+    prefeatures: int = 16
+    depth: int = 2
+    actFun: callable = nn.elu
+    use_bias: bool = True
+    param_dtype: type = jnp.float32
+
+    @nn.compact
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+        x_oh = nn.one_hot(x, self.inputDim)
+
+        x_oh = nn.Conv(features=self.prefeatures, kernel_size=(2,), padding='CIRCULAR', strides=2,
+                       use_bias=self.use_bias, param_dtype=self.param_dtype, name="Pre_Conv")(x_oh)
+
+        for j in range(self.depth):
+            x_oh = nn.Conv(features=self.features, kernel_size=self.kernel_size, padding='CIRCULAR',
+                           use_bias=self.use_bias, name=f"main Conv {j}")(x_oh)
+            x_oh = self.actFun(x_oh)
+
+        return jnp.sum(x_oh)
+
+
 class CNNCell(nn.Module):
     """
     Single layer of a CNN.
@@ -612,3 +649,10 @@ class GatedCNNCell(nn.Module):
         a, g = jnp.split(x, 2, axis=-1)
         x = nn.sigmoid(g) * jnp.tanh(a)
         return x
+
+
+def propose_POVM_outcome(key, s, info):
+    key, subkey = jax.random.split(key)
+    idx = jax.random.randint(subkey, (1,), 0, s.size)[0]
+    idx = jnp.unravel_index(idx, s.shape)
+    return s.at[idx].set(jax.random.randint(key, (1,), 0, 4)[0])
