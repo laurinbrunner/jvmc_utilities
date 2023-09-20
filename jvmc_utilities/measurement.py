@@ -70,7 +70,7 @@ class Measurement:
     def _calculate_n_corr(self) -> None:
         self.n_corr = jnp.zeros((2 * self.L, 2 * self.L))
         for i in range(2 * self.L):
-            for j in range(2 * self.L):
+            for j in range(i, 2 * self.L):
                 if i == j:
                     self.n_corr = self.n_corr.at[i, i].set(mpi.global_mean(self.n_sq_obser[self.confs[:, :, i]],
                                                                            self.probs))
