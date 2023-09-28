@@ -310,15 +310,19 @@ class TimeEvolver:
         # Dictionaries for current run
         self.__reset_current_run_dicts()
 
-    def __reset_current_run_dicts(self) -> None:
+    def __reset_current_run_dicts(self, starting_time: float = None) -> None:
         self.current_meta_data = {"tdvp_Error": [], "tdvp_Residual": [], "CV_Error": [], "CV_Residual": [],
                                   "ElocMean": [], "ElocVar": [], "tdvp_Error/integrated": [], "CV_Error/integrated": []}
         self.current_results = {obs: [] for obs in self.measurer.observables}
         self.current_times = []
 
-
-
-    def run(self, lindbladian: jVMC.operator.POVMOperator, max_time: float, measure_step: int = 0) -> None:
+    def run(
+            self,
+            lindbladian: jVMC.operator.POVMOperator,
+            max_time: float,
+            measure_step: int = 0,
+            starting_time: float = 0.0
+    ) -> None:
 
         def start_timing(name: str) -> None:
             if self.timing_file is not None:
@@ -330,15 +334,17 @@ class TimeEvolver:
 
         self.real_times.append([])
 
-        self.__do_measurement(t=0., dt=0.)
+        if len(self.current_times) == 0:
+            self.__do_measurement(t=starting_time, dt=0.)
+        starting_time = self.current_times[0]
 
-        t = self.current_times[0]
+        t = starting_time
 
         pbar = tqdm(total=100, desc="Progress", unit="%")
         bar_index = 1
         measure_counter = 0
         try:
-            while t - self.current_times[0] < max_time:
+            while t - starting_time < max_time:
 
                 dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
                                            hamiltonian=lindbladian, psi=self.psi, normFunction=self.__norm_fun,
@@ -368,9 +374,9 @@ class TimeEvolver:
 
                 # update tqdm bar
                 pbar.set_postfix({"t": t})
-                if t - self.current_times[0] > max_time / 100 * bar_index:
+                if t - starting_time > max_time / 100 * bar_index:
                     old_bar_index = bar_index
-                    bar_index = int(jnp.floor(t / max_time * 100) + 1)
+                    bar_index = int(jnp.floor((t - starting_time) / max_time * 100) + 1)
                     pbar.update(bar_index - old_bar_index)
                     pbar.set_postfix({"t": t})
 
