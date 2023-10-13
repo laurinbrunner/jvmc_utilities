@@ -447,12 +447,12 @@ class TimeEvolver:
                     writedict_time[f"n_spin_corr/dd{i},{j}"] = results["n_corr"][2*i+1, 2*j+1]
                     writedict_time[f"n_spin_corr/ud{i},{j}"] = results["n_corr"][2*i, 2*j+1]
                     writedict_time[f"n_spin_corr/du{i},{j}"] = results["n_corr"][2*i+1, 2*j]
-        if "j_restriced" in results.keys():
-            system_L = results["j_restriced"][0].shape[0]
+        if "j_restricted" in results.keys():
+            system_L = results["j_restricted"][0].shape[0]
             for i in range(system_L):
-                writedict_time[f"j_restriced/up_{i}"] = results["j_restriced"][0][i]
-                writedict_time[f"j_restriced/down_{i}"] = results["j_restriced"][1][i]
-                writedict_time[f"j_restriced/total_{i}"] = results["j_restriced"][0][i] - results["j_restriced"][1][i]
+                writedict_time[f"j_restricted/up_{i}"] = results["j_restricted"][0][i]
+                writedict_time[f"j_restricted/down_{i}"] = results["j_restricted"][1][i]
+                writedict_time[f"j_restricted/total_{i}"] = results["j_restricted"][0][i] - results["j_restricted"][1][i]
 
         # Write meta data
         writedict_index["t"] = t
