@@ -3,7 +3,7 @@ import jVMC.sampler
 import jVMC.operator as jvmcop
 import jVMC.mpi_wrapper as mpi
 from .operators import higher_order_M_T_inv
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Tuple
 
 
 class Measurement:
@@ -30,20 +30,25 @@ class Measurement:
         self.L = self.povm.system_data["L"] // 2
         self.mc_errors = mc_errors
 
-        self.M_2_body, self.T_inv_2_body = higher_order_M_T_inv(2, self.povm.M, self.povm.T_inv)
+        M_2_body, T_inv_2_body = higher_order_M_T_inv(2, self.povm.M, self.povm.T_inv)
+        M_3_body, T_inv_3_body = higher_order_M_T_inv(3, self.povm.M, self.povm.T_inv)
 
         sigma_z = jnp.array([[1, 0], [0, -1]])
         n_mat = (sigma_z + jnp.eye(2)) / 2
 
         self.n_obser = jvmcop.matrix_to_povm(n_mat, self.povm.M, self.povm.T_inv, mode="obs")
         self.n_sq_obser = jvmcop.matrix_to_povm(n_mat @ n_mat, self.povm.M, self.povm.T_inv, mode="obs")
-        self.n_corr_obser = jvmcop.matrix_to_povm(jnp.kron(n_mat, n_mat), self.M_2_body, self.T_inv_2_body,
+        self.n_corr_obser = jvmcop.matrix_to_povm(jnp.kron(n_mat, n_mat), M_2_body, T_inv_2_body,
                                                   mode="obs").reshape(4, 4)
+        self.j_restricted_obser = jvmcop.matrix_to_povm(jnp.kron(jnp.kron(jnp.eye(2) - n_mat, jnp.eye(2) - n_mat),
+                                                                 n_mat),
+                                                        M_3_body, T_inv_3_body, mode="obs").reshape(4, 4, 4)
 
         self.observables = []
         self.observables_functions = {"N": self._measure_N, "Sx_i": self._measure_Sx_i, "Sy_i": self._measure_Sy_i,
                                       "Sz_i": self._measure_Sz_i, "M_sq": self._measure_M_sq, "N_i": self._measure_N_i,
-                                      "m_corr": self._measure_m_corr, "n_corr": self._measure_n_corr}
+                                      "m_corr": self._measure_m_corr, "n_corr": self._measure_n_corr,
+                                      "j_restricted": self._measure_j_restricted}
         self.observables_functions_errors = {"N_MC_error": self._measure_N_MC_error,
                                              "Sx_i_MC_error": self._measure_Sx_i_MC_error,
                                              "Sy_i_MC_error": self._measure_Sy_i_MC_error,
@@ -137,6 +142,15 @@ class Measurement:
         if not self.calculated_n_corr:
             self._calculate_n_corr()
         return self.n_corr
+
+    def _measure_j_restricted(self) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        return (jnp.array([mpi.global_mean(self.j_restricted_obser[self.confs[:, :, 2*l], self.confs[:, :, 2*l+1],
+                                                                  self.confs[:, :, (2*l+2) % (2*self.L)]], self.probs)
+                          for l in range(self.L)]),\
+               jnp.array([mpi.global_mean(self.j_restricted_obser[self.confs[:, :, (2*l+2) % (2*self.L)],
+                                                                  self.confs[:, :, (2*l+3) % (2*self.L)],
+                                                                  self.confs[:, :, (2*l+1) % (2*self.L)]], self.probs)
+                          for l in range(self.L)]))
 
     def measure(self) -> Dict[str, jnp.ndarray]:
         """
