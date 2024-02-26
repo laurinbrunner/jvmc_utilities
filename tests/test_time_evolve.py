@@ -131,6 +131,33 @@ def test_with_measurement_with_convergence(setup_updown):
     assert jnp.allclose(init.results["N"], jnp.einsum("aij, jit -> ta", (Z + E) / 2, rho_t), atol=1E-2)
 
 
+@pytest.mark.slow
+def test_momentum(setup_updown):
+    psi, params, sampler, povm, tdvpEquation, stepper = setup_updown
+    # Make sure psi is at start state
+    psi.set_parameters(params)
+
+    steps = 200
+
+    lind = jVMC.operator.POVMOperator(povm)
+    lind.add({"name": "downdown_dis", "strength": 1.0, "sites": (0, 1)})
+    measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
+    measurer.set_observables(["Sz_i", "N"])
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, measurer=measurer, momentum=0.9)
+
+    init.initialize(steps=steps)
+
+    rho = jnp.zeros((4, 4))
+    rho = rho.at[1, 1].set(0)
+    rho = rho.at[3, 3].set(1)
+
+    Z = jnp.array([[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1, 0], [0, 0, 0, -1]],
+                   [[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, -1]]])
+    E = jnp.array([jnp.eye(4), jnp.eye(4)])
+    assert jnp.allclose(init.results["Sz_i"][-1], jnp.einsum("aij, ji -> a", Z, rho), atol=1E-2)
+    assert jnp.allclose(init.results["N"][-1], jnp.einsum("aij, ji -> a", (Z + E) / 2, rho), atol=1E-2)
+
+
 def test_copy_state(setup_updown):
     psi_source, params, sampler_source, povm, tdvpEquation, stepper = setup_updown
     # Make sure psi is at start state

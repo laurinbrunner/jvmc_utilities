@@ -28,7 +28,8 @@ class Initializer:
             stepper: Union[jVMC.util.Euler, jVMC.util.AdaptiveHeun],
             lindbladian: jVMC.operator.POVMOperator,
             measurer: Optional[Measurement] = None,
-            max_iterations: int = 2000
+            max_iterations: int = 2000,
+            momentum: Optional[float] = None
     ) -> None:
         """
         Class for learning the steady state of a Lindbladian.
@@ -39,6 +40,7 @@ class Initializer:
         :param lindbladian: `POVMOperator` object representing the Lindbladian.
         :param measurer: `Measurement` object for measuring observables during steady state search.
         :param max_iterations: Maximum number of iterations in the convergence case.
+        :param momentum: Strength of influence of previous parameter changes. None if no momentum should be done.
         """
         self.psi = psi
         self.tdvpEquation = tdvpEquation
@@ -50,6 +52,9 @@ class Initializer:
         self.iteration_count = 0
         self.times = jnp.array([0.])
         self.results = {}
+
+        self.momentum = momentum
+        self.prev_dp = 0.
 
     def initialize_no_measurement(self, steps: int = 300) -> None:
         """
@@ -104,16 +109,25 @@ class Initializer:
             else:
                 self.__no_measurements_no_conv(steps=steps)
 
+    def __step(self):
+        new_param, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
+                                          psi=self.psi)
+        if self.momentum is not None:
+            old_param = self.psi.get_parameters()
+            dp = new_param - old_param
+            self.prev_dp = dp + self.momentum * self.prev_dp
+            new_param = old_param + self.prev_dp
+        return new_param, dt
+
     def __no_measurement_with_conv(self, atol: float) -> None:
         for _ in range(self.max_iterations):
-            dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
-                                       psi=self.psi)
+            new_param, dt = self.__step()
 
-            if jnp.any(jnp.isnan(dp)):
+            if jnp.any(jnp.isnan(new_param)):
                 warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
                 break
 
-            self.psi.set_parameters(dp)
+            self.psi.set_parameters(new_param)
 
             if self.tdvpEquation.ElocVar0 < atol:
                 break
@@ -134,15 +148,14 @@ class Initializer:
             # is cancelled early, either from outside or through a convergence problem
             measure_counter = 0
             for _ in range(self.max_iterations):
-                dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
-                                           hamiltonian=self.lindbladian, psi=self.psi)
+                new_param, dt = self.__step()
 
-                if jnp.any(jnp.isnan(dp)):
+                if jnp.any(jnp.isnan(new_param)):
                     warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
                     break
 
                 t += dt
-                self.psi.set_parameters(dp)
+                self.psi.set_parameters(new_param)
 
                 if measure_counter == measure_step:
                     self.__do_measurement(results, times, t)
@@ -168,14 +181,13 @@ class Initializer:
         Helper function for initialisation without any measurements. Not intended to be called directly.
         """
         for _ in tqdm(range(steps)):
-            dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
-                                       psi=self.psi)
+            new_param, dt = self.__step()
 
-            if jnp.any(jnp.isnan(dp)):
+            if jnp.any(jnp.isnan(new_param)):
                 warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
                 break
 
-            self.psi.set_parameters(dp)
+            self.psi.set_parameters(new_param)
 
     def __with_measurement_no_conv(self, measure_step: int, steps: int) -> None:
         """
@@ -194,15 +206,14 @@ class Initializer:
             # is cancelled early, either from outside or through a convergence problem
             measure_counter = 0
             for _ in tqdm(range(steps)):
-                dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
-                                           hamiltonian=self.lindbladian, psi=self.psi)
+                new_param, dt = self.__step()
 
-                if jnp.any(jnp.isnan(dp)):
+                if jnp.any(jnp.isnan(new_param)):
                     warnings.warn("Initializer ran into nan parameters. Cancelled initialisation.", ConvergenceWarning)
                     break
 
                 t += dt
-                self.psi.set_parameters(dp)
+                self.psi.set_parameters(new_param)
 
                 if measure_counter == measure_step:
                     self.__do_measurement(results, times, t)
@@ -321,7 +332,8 @@ class TimeEvolver:
             lindbladian: jVMC.operator.POVMOperator,
             max_time: float,
             measure_step: int = 0,
-            starting_time: float = 0.0
+            starting_time: float = 0.0,
+            momentum: float = None
     ) -> None:
 
         def start_timing(name: str) -> None:
@@ -343,20 +355,27 @@ class TimeEvolver:
         pbar = tqdm(total=100, desc="Progress", unit="%")
         bar_index = 1
         measure_counter = 0
+        prev_dp = 0.
         try:
             while t - starting_time < max_time:
 
-                dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
+                new_param, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
                                            hamiltonian=lindbladian, psi=self.psi, normFunction=self.__norm_fun,
                                            outp=self.timing_manager if self.timing_file is not None else None)
 
-                if jnp.any(jnp.isnan(dp)):
+                if jnp.any(jnp.isnan(new_param)):
                     warnings.warn("TimeEvolver ran into nan-valued parameters. Aborted time evolution.",
                                   ConvergenceWarning)
                     break
 
+                if momentum is not None:
+                    old_param = self.psi.get_parameters()
+                    dp = new_param - old_param
+                    prev_dp = dp + momentum * prev_dp
+                    new_param = old_param + prev_dp
+
                 t += dt
-                self.psi.set_parameters(dp)
+                self.psi.set_parameters(new_param)
 
                 start_timing("TimeEvolver measurement")
                 if measure_counter == measure_step:
