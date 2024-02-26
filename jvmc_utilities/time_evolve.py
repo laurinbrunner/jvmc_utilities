@@ -40,6 +40,7 @@ class Initializer:
         :param lindbladian: `POVMOperator` object representing the Lindbladian.
         :param measurer: `Measurement` object for measuring observables during steady state search.
         :param max_iterations: Maximum number of iterations in the convergence case.
+        :param momentum: Strength of influence of previous parameter changes. None if no momentum should be done.
         """
         self.psi = psi
         self.tdvpEquation = tdvpEquation
