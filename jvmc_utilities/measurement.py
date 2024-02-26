@@ -152,11 +152,11 @@ class Measurement:
                                                                   self.confs[:, :, (2*l+1) % (2*self.L)]], self.probs)
                           for l in range(self.L)]))
 
-    def measure(self) -> Dict[str, jnp.ndarray]:
+    def measure(self, numSamples: int = None) -> Dict[str, jnp.ndarray]:
         """
         Returns dictionary of measurements.
         """
-        self.confs, _, self.probs = self.sampler.sample()
+        self.confs, _, self.probs = self.sampler.sample(numSamples)
 
         self.calculated_n = False
         self.calculated_n_corr = False
