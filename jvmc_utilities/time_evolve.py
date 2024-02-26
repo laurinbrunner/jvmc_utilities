@@ -331,7 +331,8 @@ class TimeEvolver:
             lindbladian: jVMC.operator.POVMOperator,
             max_time: float,
             measure_step: int = 0,
-            starting_time: float = 0.0
+            starting_time: float = 0.0,
+            momentum: float = None
     ) -> None:
 
         def start_timing(name: str) -> None:
@@ -353,20 +354,26 @@ class TimeEvolver:
         pbar = tqdm(total=100, desc="Progress", unit="%")
         bar_index = 1
         measure_counter = 0
+        prev_dp = 0.
         try:
             while t - starting_time < max_time:
 
-                dp, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
+                new_param, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(),
                                            hamiltonian=lindbladian, psi=self.psi, normFunction=self.__norm_fun,
                                            outp=self.timing_manager if self.timing_file is not None else None)
 
-                if jnp.any(jnp.isnan(dp)):
+                if jnp.any(jnp.isnan(new_param)):
                     warnings.warn("TimeEvolver ran into nan-valued parameters. Aborted time evolution.",
                                   ConvergenceWarning)
                     break
 
+                if momentum is not None:
+                    dp = new_param - self.psi.get_parameters()
+                    new_param = dp + momentum * prev_dp
+                    prev_dp = dp
+
                 t += dt
-                self.psi.set_parameters(dp)
+                self.psi.set_parameters(new_param)
 
                 start_timing("TimeEvolver measurement")
                 if measure_counter == measure_step:
