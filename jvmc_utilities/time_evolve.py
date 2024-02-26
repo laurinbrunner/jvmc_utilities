@@ -114,8 +114,8 @@ class Initializer:
         if self.momentum is not None:
             old_param = self.psi.get_parameters()
             dp = new_param - old_param
-            new_param = dp + self.momentum * self.prev_dp
-            self.prev_dp = dp
+            self.prev_dp = dp + self.momentum * self.prev_dp
+            new_param = old_param + self.prev_dp
         return new_param, dt
 
     def __no_measurement_with_conv(self, atol: float) -> None:
@@ -368,9 +368,10 @@ class TimeEvolver:
                     break
 
                 if momentum is not None:
-                    dp = new_param - self.psi.get_parameters()
-                    new_param = dp + momentum * prev_dp
-                    prev_dp = dp
+                    old_param = self.psi.get_parameters()
+                    dp = new_param - old_param
+                    prev_dp = dp + momentum * prev_dp
+                    new_param = old_param + prev_dp
 
                 t += dt
                 self.psi.set_parameters(new_param)
