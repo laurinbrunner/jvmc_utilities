@@ -106,6 +106,36 @@ def test_no_measurement_with_convergence():
     assert jnp.allclose(measurer.measure()["Sz_i"], jnp.array([1, -1]), atol=1E-2)
 
 
+def test_no_measurement_with_supervised():
+    L = 2
+    psi = jVMC.util.util.init_net({"batch_size": 5000, "net1":
+        {"type": "RNN", "parameters": {"inputDim": 4, "logProbFactor": 1,
+                                       "hiddenSize": 3, "L": L, "depth": 1,
+                                       "cell": "RNN", "realValuedOutput": True}}},
+                                  (L,), 123)
+    sampler = jVMC.sampler.ExactSampler(psi, (L,), lDim=4, logProbFactor=1)
+    tdvpEquation = jVMC.util.tdvp.TDVP(sampler, rhsPrefactor=-1., pinvTol=1e-6, diagonalShift=0,
+                                       makeReal='real', crossValidation=False)
+    stepper = jVMC.util.stepper.Euler(timeStep=1E-2)
+
+    povm = jVMC.operator.POVM({"dim": "1D", "L": L})
+    jvmc_utilities.operators.initialisation_operators(povm)
+    lind = jVMC.operator.POVMOperator(povm)
+
+    P_exact = jvmc_utilities.time_evolve.get_P_exact(povm, 0., 1., 0.)
+    target_fn = lambda x: jvmc_utilities.time_evolve.supervised_target_function(P_exact, x)
+    opti = jvmc_utilities.time_evolve.SupervisedOptimizer(psi, target_fn)
+
+    init = jvmc_utilities.time_evolve.Initializer(psi, tdvpEquation, stepper, lind, TDVP=False,
+                                                  supervised_optimizer=opti, max_iterations=5000, sample_steps=100)
+
+    init.initialize(convergence=True, atol=1E-3, measure_step=-1)
+    measurer = jvmc_utilities.measurement.Measurement(sampler, povm)
+    measurer.set_observables(["Sz_i"])
+
+    assert jnp.allclose(measurer.measure()["Sz_i"], jnp.array([1, -1]), atol=1E-2)
+
+
 def test_with_measurement_with_convergence(setup_updown):
     psi, params, sampler, povm, tdvpEquation, stepper = setup_updown
     # Make sure psi is at start state

@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from tqdm import tqdm
-from typing import Optional, Union, List, Dict
+from typing import Optional, Union, List, Dict, Callable, Tuple
 import jVMC
 from jvmc_utilities.measurement import Measurement
 import warnings
@@ -11,6 +11,8 @@ import os
 
 import jvmc_utilities
 import jax
+import optax
+import functools
 
 
 class ConvergenceWarning(Warning):
@@ -18,6 +20,57 @@ class ConvergenceWarning(Warning):
     Warning for encountering nan-values in the network parameters at time evolution.
     """
     pass
+
+
+class SupervisedOptimizer:
+    def __init__(self, psi: jVMC.vqs.NQS, target_function: Callable, learning_rate: float = 0.001):
+        self.psi = psi
+        self.target_function = target_function
+
+        self.optimizer = optax.adam(learning_rate)
+        self.opt_state = self.optimizer.init(psi.parameters)
+
+        self.__update_jited = jax.jit(functools.partial(SupervisedOptimizer.__update, target_function=target_function,
+                                                        loss_function=self.__loss_function, optimizer=self.optimizer))
+
+    def __loss_function(self, params, x, y) -> float:
+        preds = jax.nn.log_softmax(jax.vmap(lambda z: self.psi.net.apply(params, z), in_axes=(0,))(x[0])).real
+        return 1 - jnp.sum(jnp.sqrt(jnp.exp(preds) * y))**2
+
+    @staticmethod
+    def __update(params, x, opt_state, target_function, loss_function, optimizer):
+        y = target_function(x)
+        loss, grads = jax.value_and_grad(loss_function)(params, x, y)
+        updates, opt_state = optimizer.update(grads, opt_state, params)
+        params = optax.apply_updates(params, updates)
+        return params, loss, opt_state
+
+    def update(self, params, x):
+        params, loss, self.opt_state = self.__update_jited(params, x, self.opt_state)
+        return params, loss
+
+
+def supervised_target_function(P_exact: jnp.ndarray, x: jnp.ndarray) -> jnp.ndarray:
+    s = 4 * x[:, :, ::2] + x[:, :, 1::2]
+    out = jnp.prod(P_exact[s], axis=-1)
+    return jnp.clip(out.real, 1e-16, 1.0)
+
+
+def get_P_exact(povm: jVMC.operator.POVM, eps_0: float, eps_1: float, eps_2: float) -> jnp.ndarray:
+    """
+    Get probabilities of POVM outcomes given an initial state for two computational spins.
+
+    :param povm: POVM object to calculate the probabilities
+    :param eps_0: Component of the doubly occupied state
+    :param eps_1: Component of the up state
+    :param eps_2: Component of the down state
+    """
+    M2, T2 = jvmc_utilities.higher_order_M_T_inv(2, povm.M, povm.T_inv)
+    rho = jnp.array([[eps_0, 0, 0, 0],
+                     [0, eps_1, 0, 0],
+                     [0, 0, eps_2, 0],
+                     [0, 0, 0, 1 - eps_0 - eps_1 - eps_2]])
+    return jnp.einsum("aij, ji -> a", M2, rho)
 
 
 class Initializer:
@@ -29,7 +82,10 @@ class Initializer:
             lindbladian: jVMC.operator.POVMOperator,
             measurer: Optional[Measurement] = None,
             max_iterations: int = 2000,
-            momentum: Optional[float] = None
+            momentum: Optional[float] = None,
+            TDVP: Optional[bool] = True,
+            supervised_optimizer: Optional[SupervisedOptimizer] = None,
+            sample_steps: int = 20
     ) -> None:
         """
         Class for learning the steady state of a Lindbladian.
@@ -55,6 +111,17 @@ class Initializer:
 
         self.momentum = momentum
         self.prev_dp = 0.
+
+        self.sample_steps = sample_steps  # Only used in the supervised case
+        self.TDVP = TDVP
+        if TDVP:
+            self.__step = self.__step_TDVP
+        else:
+            self.__step = self.__step_supervised
+            self.__optimizer = supervised_optimizer
+            self.__opt_counter = 0
+            self._losses = []
+            self.samples = None
 
     def initialize_no_measurement(self, steps: int = 300) -> None:
         """
@@ -109,7 +176,7 @@ class Initializer:
             else:
                 self.__no_measurements_no_conv(steps=steps)
 
-    def __step(self):
+    def __step_TDVP(self) -> Tuple[jnp.ndarray, float]:
         new_param, dt = self.stepper.step(0, self.tdvpEquation, self.psi.get_parameters(), hamiltonian=self.lindbladian,
                                           psi=self.psi)
         if self.momentum is not None:
@@ -118,6 +185,16 @@ class Initializer:
             self.prev_dp = dp + self.momentum * self.prev_dp
             new_param = old_param + self.prev_dp
         return new_param, dt
+
+    def __step_supervised(self) -> Tuple[jnp.ndarray, float]:
+        params = self.psi.parameters
+        if self.__opt_counter % self.sample_steps == 0:
+            self.samples = self.tdvpEquation.sampler.sample()[0]
+            self.__opt_counter += 1
+
+        params, loss = self.__optimizer.update(params, self.samples)
+        self._losses.append(loss)
+        return jnp.concatenate([p.ravel() for p in jax.tree_util.tree_flatten(params)[0]]), 0.1
 
     def __no_measurement_with_conv(self, atol: float) -> None:
         for _ in range(self.max_iterations):
@@ -129,8 +206,12 @@ class Initializer:
 
             self.psi.set_parameters(new_param)
 
-            if self.tdvpEquation.ElocVar0 < atol:
-                break
+            if self.TDVP:
+                if self.tdvpEquation.ElocVar0 < atol:
+                    break
+            else:
+                if self._losses[-1] < atol:
+                    break
 
         if _ == self.max_iterations - 1:
             warnings.warn(f"Initializer did not converge in {self.max_iterations} iterations.", ConvergenceWarning)
@@ -163,8 +244,12 @@ class Initializer:
                 else:
                     measure_counter += 1
 
-                if self.tdvpEquation.ElocVar0 < atol:
-                    break
+                if self.TDVP:
+                    if self.tdvpEquation.ElocVar0 < atol:
+                        break
+                else:
+                    if self._losses[-1] < atol:
+                        break
 
             if _ == self.max_iterations - 1:
                 warnings.warn(f"Initializer did not converge in {self.max_iterations} iterations.", ConvergenceWarning)
