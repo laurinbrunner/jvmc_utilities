@@ -1,4 +1,4 @@
-from .operators import initialisation_operators, higher_order_M_T_inv, aqi_model_operators, EfficientPOVMOperator
+from .operators import initialisation_operators, higher_order_M_T_inv, aqi_model_operators, EfficientPOVMOperator, TDVP_with_constraint
 from .measurement import Measurement
 from .time_evolve import Initializer, copy_state, SupervisedOptimizer, TimeEvolver, get_P_exact
 from . import nets
