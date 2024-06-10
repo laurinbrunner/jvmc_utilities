@@ -134,3 +134,28 @@ def test_efficient_povm_operator_batched():
     Oloc1 = efficient_lindblad.get_O_loc(confs, psi, logPsiS)
     Oloc2 = lindblad.get_O_loc(confs, psi, logPsiS)
     assert (Oloc1 == Oloc2).all()
+
+
+def test_TDVP_with_constraint():
+    L = 2
+    povm = jVMC.operator.POVM({"dim": "1D", "L": L})
+
+    net = nets.MCMC_CNN(features=2, kernel_size=(2,))
+    psi = jVMC.vqs.NQS(net, seed=1234, batchSize=500)
+
+    sampler = jVMC.sampler.ExactSampler(psi, (L, ), lDim=4, logProbFactor=1.)
+
+    # define observable that should be conserved
+    M2, T2 = higher_order_M_T_inv(2, povm.M, povm.T_inv)
+    n_lsigma = jnp.array([[1, 0], [0, 0]])
+    n_l = jnp.kron(n_lsigma, jnp.eye(2)) + jnp.kron(jnp.eye(2), n_lsigma) - 0.5 * jnp.eye(4)
+    n_l_povm = jVMC.operator.matrix_to_povm(n_l, M2, T2, mode="obs")
+
+    Lindbladian = EfficientPOVMOperator(povm=povm, ElocBatchSize=-1)
+    Lindbladian.add({"name": "decayup", "strength": 1., "sites": (0,)})
+
+    tdvpEquation_fixed_N = TDVP_with_constraint(sampler=sampler, rhsPrefactor=-1., pinvTol=1E-7, diagonalShift=0,
+                                                makeReal='real',
+                                                crossValidation=False, snrTol=2,
+                                                diagonalizeOnDevice=True, omega=n_l_povm, k=2)
+    tdvpEquation_fixed_N(psi.get_parameters(), t=0, psi=psi, hamiltonian=Lindbladian)

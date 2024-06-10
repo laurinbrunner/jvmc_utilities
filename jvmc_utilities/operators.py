@@ -2,7 +2,10 @@ import jax
 import jax.numpy as jnp
 import jVMC.operator as jvmcop
 import jVMC.global_defs as global_defs
+import jVMC.mpi_wrapper as mpi
 import itertools
+from jVMC.util import TDVP
+from jVMC.stats import SampledObs
 from typing import Tuple
 
 
@@ -240,3 +243,144 @@ class EfficientPOVMOperator(jvmcop.POVMOperator):
             Oloc = self._insert_Oloc_batch_pmapd(Oloc, OlocBatch, numBatches * batchSize)
 
         return Oloc
+
+
+class TDVP_with_constraint(TDVP):
+    """
+    Class for calculating parameter updates from TDVP equation with an additional constraint in the POVM framework.
+
+    This class inherits from jVMC.util.TDVP and works similar to it in almost all aspects.
+    The `omega` parameter should be the POVM representation of an observable that has an expectation value of 0
+    throughout the time evolution. `k` vives the number of sites the observable 'looks' at.
+    """
+
+    def __init__(self, sampler, omega, k, **kwargs):
+        super().__init__(sampler, **kwargs)
+        self._omega = omega
+        if k == 1:
+            self.omega_k = self._omega_1
+        elif k == 2:
+            self.omega_k = self._omega_2
+        else:
+            raise ValueError("Only implemented values for k are 1 and 2.")
+        self.c_over_time = []
+
+    def _omega_2(self, samples):
+        s = 4 * samples[..., ::2] + samples[..., 1::2]
+        return jnp.sum(self._omega[s], axis=-1)
+
+    def _omega_1(self, samples):
+        return jnp.sum(self._omega[samples], axis=-1)
+
+    def __call__(self, netParameters, t, *, psi, hamiltonian, **rhsArgs):
+        """ For given network parameters this function solves the TDVP equation.
+
+        This function returns :math:`\\dot\\theta=S^{-1}F`. Thereby an instance of the ``TDVP`` class is a suited
+        callable for the right hand side of an ODE to be used in combination with the integration schemes
+        implemented in ``jVMC.stepper``. Alternatively, the interface matches the scipy ODE solvers as well.
+
+        Arguments:
+            * ``netParameters``: Parameters of the NQS.
+            * ``t``: Current time.
+            * ``psi``: NQS ansatz. Instance of ``jVMC.vqs.NQS``.
+            * ``hamiltonian``: Hamiltonian operator, i.e., an instance of a derived class of ``jVMC.operator.Operator``. \
+                                *Notice:* Current time ``t`` is by default passed as argument when computing matrix elements.
+
+        Further optional keyword arguments:
+            * ``numSamples``: Number of samples to be used by MC sampler.
+            * ``outp``: An instance of ``jVMC.OutputManager``. If ``outp`` is given, timings of the individual steps \
+                are recorded using the ``OutputManger``.
+            * ``intStep``: Integration step number of multi step method like Runge-Kutta. This information is used to store \
+                quantities like energy or residuals at the initial integration step.
+
+        Returns:
+            The solution of the TDVP equation, :math:`\\dot\\theta=S^{-1}F`.
+        """
+
+        tmpParameters = psi.get_parameters()
+        psi.set_parameters(netParameters)
+
+        outp = None
+        if "outp" in rhsArgs:
+            outp = rhsArgs["outp"]
+        self.outp = outp
+
+        numSamples = None
+        if "numSamples" in rhsArgs:
+            numSamples = rhsArgs["numSamples"]
+
+        def start_timing(outp, name):
+            if outp is not None:
+                outp.start_timing(name)
+
+        def stop_timing(outp, name, waitFor=None):
+            if waitFor is not None:
+                waitFor.block_until_ready()
+            if outp is not None:
+                outp.stop_timing(name)
+
+        # Get sample
+        start_timing(outp, "sampling")
+        sampleConfigs, sampleLogPsi, p = self.sampler.sample(numSamples=numSamples)
+        stop_timing(outp, "sampling", waitFor=sampleConfigs)
+
+        # Evaluate local energy
+        start_timing(outp, "compute Eloc")
+        Eloc = hamiltonian.get_O_loc(sampleConfigs, psi, sampleLogPsi, t)
+        omega = self.omega_k(sampleConfigs)
+        omega_samob = SampledObs(omega, p)
+        Eloc_samob = SampledObs(Eloc, p)
+        c = - Eloc_samob.covar(omega_samob).ravel()[0] / omega_samob.var()[0]
+        self.c_over_time.append(c)
+        stop_timing(outp, "compute Eloc", waitFor=Eloc)
+        Eloc = SampledObs(Eloc + c * omega, p)
+
+        # Evaluate gradients
+        start_timing(outp, "compute gradients")
+        sampleGradients = psi.gradients(sampleConfigs)
+        stop_timing(outp, "compute gradients", waitFor=sampleGradients)
+        sampleGradients = SampledObs(sampleGradients, p)
+
+        start_timing(outp, "solve TDVP eqn.")
+        update, solverResidual = self.solve(Eloc, sampleGradients)
+        stop_timing(outp, "solve TDVP eqn.")
+
+        if outp is not None:
+            outp.add_timing("MPI communication", mpi.get_communication_time())
+
+        psi.set_parameters(tmpParameters)
+
+        if "intStep" in rhsArgs:
+            if rhsArgs["intStep"] == 0:
+
+                self.ElocMean0 = self.ElocMean
+                self.ElocVar0 = self.ElocVar
+
+                self.metaData = {
+                    "tdvp_error": self._get_tdvp_error(update),
+                    "tdvp_residual": solverResidual,
+                    "SNR": self.snr,
+                    "spectrum": self.ev,
+                }
+
+                if self.crossValidation:
+                    Eloc1 = Eloc.subset(start=0, step=2)
+                    sampleGradients1 = sampleGradients.subset(start=0, step=2)
+                    Eloc2 = Eloc.subset(start=1, step=2)
+                    sampleGradients2 = sampleGradients.subset(start=1, step=2)
+                    update_1, _, _ = self.solve(Eloc1, sampleGradients1)
+                    S2, F2 = self.get_tdvp_equation(Eloc2, sampleGradients2)
+
+                    validation_tdvpErr = self._get_tdvp_error(update_1)
+                    update, solverResidual, _ = self.solve(Eloc, sampleGradients)
+                    validation_residual = (jnp.linalg.norm(S2.dot(update_1) - F2) / jnp.linalg.norm(
+                        F2)) / solverResidual
+
+                    self.crossValidationFactor_residual = validation_residual
+                    self.crossValidationFactor_tdvpErr = validation_tdvpErr / self.metaData["tdvp_error"]
+                    self.metaData["tdvp_residual_cross_validation_ratio"] = self.crossValidationFactor_residual
+                    self.metaData["tdvp_error_cross_validation_ratio"] = self.crossValidationFactor_tdvpErr
+
+                    self.S, _ = self.get_tdvp_equation(Eloc, sampleGradients)
+
+        return update
