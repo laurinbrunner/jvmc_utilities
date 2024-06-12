@@ -156,7 +156,7 @@ class Measurement:
         """
         Returns dictionary of measurements.
         """
-        self.confs, _, self.probs = self.sampler.sample(numSamples)
+        self.confs, _, self.probs = self.sampler.sample(numSamples=numSamples)
 
         self.calculated_n = False
         self.calculated_n_corr = False

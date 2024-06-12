@@ -350,7 +350,8 @@ class TimeEvolver:
             writer: metric_writers.summary_writer.SummaryWriter = None,
             additional_hparams: Dict = None,
             parameter_file: str = None,
-            timing_file: str = None
+            timing_file: str = None,
+            measure_samples: int = None
     ) -> None:
         self.psi = psi
         self.tdvpEquation = tdvpEquation
@@ -360,6 +361,7 @@ class TimeEvolver:
         self.writer = writer
         self.additional_hparams = additional_hparams
         self.write_index = 0
+        self.measure_samples = measure_samples
 
         if parameter_file is not None:
             try:
@@ -597,7 +599,7 @@ class TimeEvolver:
         self.real_times[-1].append(time.time())
 
         # Measure observables
-        _res = self.measurer.measure()
+        _res = self.measurer.measure(numSamples=self.measure_samples)
         for obs in self.measurer.observables:
             self.current_results[obs].append(_res[obs])
 
