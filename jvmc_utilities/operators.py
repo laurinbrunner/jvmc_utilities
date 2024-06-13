@@ -368,11 +368,11 @@ class TDVP_with_constraint(TDVP):
                     sampleGradients1 = sampleGradients.subset(start=0, step=2)
                     Eloc2 = Eloc.subset(start=1, step=2)
                     sampleGradients2 = sampleGradients.subset(start=1, step=2)
-                    update_1, _, _ = self.solve(Eloc1, sampleGradients1)
+                    update_1, _ = self.solve(Eloc1, sampleGradients1)
                     S2, F2 = self.get_tdvp_equation(Eloc2, sampleGradients2)
 
                     validation_tdvpErr = self._get_tdvp_error(update_1)
-                    update, solverResidual, _ = self.solve(Eloc, sampleGradients)
+                    update, solverResidual = self.solve(Eloc, sampleGradients)
                     validation_residual = (jnp.linalg.norm(S2.dot(update_1) - F2) / jnp.linalg.norm(
                         F2)) / solverResidual
 
