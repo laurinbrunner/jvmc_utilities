@@ -40,6 +40,7 @@ class SupervisedOptimizer:
     @staticmethod
     def __update(params, x, opt_state, target_function, loss_function, optimizer):
         y = target_function(x)
+        y = jax.nn.softmax(y)
         loss, grads = jax.value_and_grad(loss_function)(params, x, y)
         updates, opt_state = optimizer.update(grads, opt_state, params)
         params = optax.apply_updates(params, updates)
