@@ -35,12 +35,11 @@ class SupervisedOptimizer:
 
     def __loss_function(self, params, x, y) -> float:
         preds = jax.nn.log_softmax(jax.vmap(lambda z: self.psi.net.apply(params, z), in_axes=(0,))(x[0])).real
-        return 1 - jnp.sum(jnp.sqrt(jnp.exp(preds) * y))**2
+        return jnp.sum(jnp.exp(y) * (y - preds))
 
     @staticmethod
     def __update(params, x, opt_state, target_function, loss_function, optimizer):
-        y = target_function(x)
-        y = jax.nn.softmax(y)
+        y = jax.nn.log_softmax(target_function(x))
         loss, grads = jax.value_and_grad(loss_function)(params, x, y)
         updates, opt_state = optimizer.update(grads, opt_state, params)
         params = optax.apply_updates(params, updates)
@@ -53,8 +52,8 @@ class SupervisedOptimizer:
 
 def supervised_target_function(P_exact: jnp.ndarray, x: jnp.ndarray) -> jnp.ndarray:
     s = 4 * x[:, :, ::2] + x[:, :, 1::2]
-    out = jnp.prod(P_exact[s], axis=-1)
-    return jnp.clip(out.real, 1e-16, 1.0)
+    out = jnp.sum(jnp.log(jnp.clip(P_exact[s].real, 1e-16, 1.0)), axis=-1)
+    return out
 
 
 def get_P_exact(povm: jVMC.operator.POVM, eps_0: float, eps_1: float, eps_2: float) -> jnp.ndarray:
@@ -191,7 +190,7 @@ class Initializer:
         params = self.psi.parameters
         if self.__opt_counter % self.sample_steps == 0:
             self.samples = self.tdvpEquation.sampler.sample()[0]
-            self.__opt_counter += 1
+        self.__opt_counter += 1
 
         params, loss = self.__optimizer.update(params, self.samples)
         self._losses.append(loss)
