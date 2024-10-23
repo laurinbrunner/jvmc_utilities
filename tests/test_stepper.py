@@ -27,6 +27,29 @@ def test_BulirschStoer_normal_ODE():
     assert(jnp.all(jnp.diff(t) <= maxStep * 1.01))
 
 
+def test_minAdaptiveHeun_normal_ODE():
+    """
+    Test the minAdaptiveHeun class with a simple differntial equation.
+    """
+    def f(y, t, intStep=-1):
+        return y * jnp.sin(t)
+
+    maxStep = 0.3
+    stepper = jvmc_utilities.stepper.minAdaptiveHeun(maxStep=maxStep, minStep=1E-3)
+
+    y = jnp.zeros(100)
+    t = jnp.zeros(100)
+    y0 = 0.4
+    y = y.at[0].set(y0)
+    for i in range(1, 100):
+        y_new, dt = stepper.step(t[i - 1], f, y[i - 1])
+        y = y.at[i].set(y_new)
+        t = t.at[i].set(t[i - 1] + dt)
+
+    assert(jnp.allclose(y, 0.4 * jnp.exp(-jnp.cos(t) + 1)))
+    assert(jnp.all(jnp.diff(t) <= maxStep * 1.01))
+
+
 @pytest.mark.slow
 def test_BulirschStoer_NADE():
     """
