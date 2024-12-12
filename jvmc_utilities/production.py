@@ -82,6 +82,7 @@ def lindblad_time_evolution(
 
 class NetworkHyperparameters:
     """Dataclass for all network hyperparameters"""
+    network_type: str
     param_dtype: str
     depth: int
     features: int
@@ -110,65 +111,119 @@ def get_network(
     else:
         orbit = None
 
-    if network_type == "CNN":
-        net = ju_nets.POVMCNN(L=2*system_size, depth=hyperparameters.depth, features=hyperparameters.features,
-                              orbit=orbit, kernel_size=(hyperparameters.kernel_size,), param_dtype=dtype)
-    elif network_type == "GatedCNN":
-        net = ju_nets.POVMCNNGated(L=2*system_size, depth=hyperparameters.depth, features=hyperparameters.features,
-                                   orbit=orbit, kernel_size=(hyperparameters.kernel_size,), param_dtype=dtype)
-    elif network_type == "CNNResidual":
-        net = ju_nets.POVMCNNResidual(L=2*system_size, depth=hyperparameters.depth, features=hyperparameters.features,
-                                      orbit=orbit, kernel_size=(hyperparameters.kernel_size,), param_dtype=dtype)
-    elif network_type == "CNNEmbedded":
-        net = ju_nets.POVMCNNEmbedded(L=system_size, depth=hyperparameters.depth, features=hyperparameters.features,
-                                      orbit=orbit, kernel_size=(hyperparameters.kernel_size,), param_dtype=dtype,
+    if hyperparameters.network_type == "CNN":
+        net = ju_nets.POVMCNN(L=2*system_size,
+                              depth=hyperparameters.depth,
+                              features=hyperparameters.features,
+                              orbit=orbit,
+                              kernel_size=(hyperparameters.kernel_size,),
+                              param_dtype=dtype)
+    elif hyperparameters.network_type == "GatedCNN":
+        net = ju_nets.POVMCNNGated(L=2*system_size,
+                                   depth=hyperparameters.depth,
+                                   features=hyperparameters.features,
+                                   orbit=orbit,
+                                   kernel_size=(hyperparameters.kernel_size,),
+                                   param_dtype=dtype)
+    elif hyperparameters.network_type == "CNNResidual":
+        net = ju_nets.POVMCNNResidual(L=2*system_size,
+                                      depth=hyperparameters.depth,
+                                      features=hyperparameters.features,
+                                      orbit=orbit,
+                                      kernel_size=(hyperparameters.kernel_size,),
+                                      param_dtype=dtype)
+    elif hyperparameters.network_type == "CNNEmbedded":
+        net = ju_nets.POVMCNNEmbedded(L=system_size,
+                                      depth=hyperparameters.depth,
+                                      features=hyperparameters.features,
+                                      orbit=orbit,
+                                      kernel_size=(hyperparameters.kernel_size,),
+                                      param_dtype=dtype,
                                       embeddingDimFac=hyperparameters.embeddingDimFac)
-    elif network_type == "CNNEmbeddedResidual":
-        net = ju_nets.POVMCNNEmbeddedResidual(L=system_size, depth=hyperparameters.depth,
-                                              features=hyperparameters.features, orbit=orbit,
-                                              kernel_size=(hyperparameters.kernel_size,), param_dtype=dtype,
+    elif hyperparameters.network_type == "CNNEmbeddedResidual":
+        net = ju_nets.POVMCNNEmbeddedResidual(L=system_size,
+                                              depth=hyperparameters.depth,
+                                              features=hyperparameters.features,
+                                              orbit=orbit,
+                                              kernel_size=(hyperparameters.kernel_size,),
+                                              param_dtype=dtype,
                                               embeddingDimFac=hyperparameters.embeddingDimFac)
-    elif network_type == "CNNAttention":
-        net = ju_nets.CNNAttention(L=2*system_size, depth=hyperparameters.depth, features=hyperparameters.features,
-                                   orbit=orbit, attention_heads=hyperparameters.attention_heads,
-                                   kernel_size=(hyperparameters.kernel_size,), param_dtype=dtype)
-    elif network_type == "CNNAttentionResidual":
-        net = ju_nets.CNNAttentionResidual(L=2*system_size, depth=hyperparameters.depth,
-                                           features=hyperparameters.features, orbit=orbit,
+    elif hyperparameters.network_type == "CNNAttention":
+        net = ju_nets.CNNAttention(L=2*system_size,
+                                   depth=hyperparameters.depth,
+                                   features=hyperparameters.features,
+                                   orbit=orbit,
+                                   attention_heads=hyperparameters.attention_heads,
+                                   kernel_size=(hyperparameters.kernel_size,),
+                                   param_dtype=dtype)
+    elif hyperparameters.network_type == "CNNAttentionResidual":
+        net = ju_nets.CNNAttentionResidual(L=2*system_size,
+                                           depth=hyperparameters.depth,
+                                           features=hyperparameters.features,
+                                           orbit=orbit,
                                            attention_heads=hyperparameters.attention_heads,
-                                           kernel_size=(hyperparameters.kernel_size,), param_dtype=dtype)
-    elif network_type == "DeepNADE":
-        net = ju_nets.DeepNADE(L=2*system_size, depth=hyperparameters.depth, hiddenSize=hyperparameters.features,
+                                           kernel_size=(hyperparameters.kernel_size,),
+                                           param_dtype=dtype)
+    elif hyperparameters.network_type == "DeepNADE":
+        net = ju_nets.DeepNADE(L=2*system_size,
+                               depth=hyperparameters.depth,
+                               hiddenSize=hyperparameters.features,
                                orbit=orbit)
-    elif network_type == "AFFN":
-        net = ju_nets.AFFN(L=2*system_size, depth=hyperparameters.depth, hiddenSize=hyperparameters.features,
+    elif hyperparameters.network_type == "AFFN":
+        net = ju_nets.AFFN(L=2*system_size,
+                           depth=hyperparameters.depth,
+                           hiddenSize=hyperparameters.features,
                            orbit=orbit)
-    elif network_type == "RNN":
+    elif hyperparameters.network_type == "RNN":
         if hyperparameters.symmetry:
-            net = jVMC.nets.RNN1DGeneralSym(L=2*system_size, depth=hyperparameters.depth,
-                                            hiddenSize=hyperparameters.features, orbit=orbit,
-                                            logProbFactor=logProbFactor, realValuedOutput=True, inputDim=inputDim,
+            net = jVMC.nets.RNN1DGeneralSym(L=2*system_size,
+                                            depth=hyperparameters.depth,
+                                            hiddenSize=hyperparameters.features,
+                                            orbit=orbit,
+                                            logProbFactor=logProbFactor,
+                                            realValuedOutput=True,
+                                            inputDim=inputDim,
                                             cell="RNN")
         else:
-            net = jVMC.nets.RNN1DGeneral(L=2*system_size, depth=hyperparameters.depth, inputDim=inputDim,
-                                         hiddenSize=hyperparameters.features, logProbFactor=logProbFactor,
-                                         realValuedOutput=True, cell="RNN")
-    elif network_type == "LSTM":
+            net = jVMC.nets.RNN1DGeneral(L=2*system_size,
+                                         depth=hyperparameters.depth,
+                                         inputDim=inputDim,
+                                         hiddenSize=hyperparameters.features,
+                                         logProbFactor=logProbFactor,
+                                         realValuedOutput=True,
+                                         cell="RNN")
+    elif hyperparameters.network_type == "LSTM":
         if hyperparameters.symmetry:
-            net = jVMC.nets.RNN1DGeneralSym(L=2*system_size, depth=hyperparameters.depth, inputDim=inputDim,
-                                            hiddenSize=hyperparameters.features, orbit=orbit,
-                                            logProbFactor=logProbFactor, realValuedOutput=True, cell="LSTM")
+            net = jVMC.nets.RNN1DGeneralSym(L=2*system_size,
+                                            depth=hyperparameters.depth,
+                                            inputDim=inputDim,
+                                            hiddenSize=hyperparameters.features,
+                                            orbit=orbit,
+                                            logProbFactor=logProbFactor,
+                                            realValuedOutput=True,
+                                            cell="LSTM")
         else:
-            net = jVMC.nets.RNN1DGeneral(L=2*system_size, depth=hyperparameters.depth, cell="LSTM", inputDim=inputDim,
-                                         hiddenSize=hyperparameters.features, logProbFactor=logProbFactor,
+            net = jVMC.nets.RNN1DGeneral(L=2*system_size,
+                                         depth=hyperparameters.depth,
+                                         cell="LSTM",
+                                         inputDim=inputDim,
+                                         hiddenSize=hyperparameters.features,
+                                         logProbFactor=logProbFactor,
                                          realValuedOutput=True)
-    elif network_type == "CNN_mcmc":
-        net = ju_nets.MCMC_CNN(features=hyperparameters.features, depth=hyperparameters.depth,
-                               kernel_size=(hyperparameters.kernel_size,))
+    elif hyperparameters.network_type == "CNN_mcmc":
+        net = ju_nets.MCMC_CNN(features=hyperparameters.features,
+                               depth=hyperparameters.depth,
+                               kernel_size=(hyperparameters.kernel_size,),
+                               param_dtype=dtype)
+    elif hyperparameters.network_type == "ResNet_mcmc":
+        net = ju_nets.MCMC_ResNet(features=hyperparameters.features,
+                                  depth=hyperparameters.depth,
+                                  kernel_size=(hyperparameters.kernel_size, ),
+                                  param_dtype=dtype)
     else:
         raise ValueError("Unknown network type. Valid types are 'GatedCNN', 'CNN', 'DeepNADE', 'AFFN', 'RNN', 'LSTM', "
                          "'CNN_mcmc', 'CNNResidual', 'CNNEmbedded', 'CNNEmbeddedResidual', 'CNNAttention', "
-                         "'CNNAttentionResidual'")
+                         "'CNNAttentionResidual', 'ResNet_mcmc'")
     return net
 
 
@@ -241,10 +296,9 @@ def argument_parser() -> argparse.ArgumentParser:
 
     # Network parameters
     parser.add_argument('--network', type=str, default='DeepNADE',
-                        choices=["DeepNADE", "GatedCNN", "CNN", "RNN", "LSTM",
-                                 "AFFN", "CNNResidual", "CNNAttention",
-                                 "CNNAttentionResidual", "CNN_mcmc",
-                                 "CNNEmbedded", "CNNEmbeddedResidual"])
+                        choices=["DeepNADE", "GatedCNN", "CNN", "RNN", "LSTM", "AFFN", "CNNResidual", "CNNAttention",
+                                 "CNNAttentionResidual", "CNN_mcmc", "CNNEmbedded", "CNNEmbeddedResidual",
+                                 "ResNet_mcmc"])
     parser.add_argument('--param_dtype', type=str, default="float64", choices=["float32", "float64"])
     parser.add_argument('--depth', type=int, default=1)
     parser.add_argument('--features', type=int, default=4)
