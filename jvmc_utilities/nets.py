@@ -940,7 +940,7 @@ class MCMC_ResNet(nn.Module):
 
         x /= np.sqrt(nblock+1, dtype=self.param_dtype)
 
-        x = jax.scipy.special.logsumexp(x) #- jnp.log(self.features * nsites)
+        x = jax.scipy.special.logsumexp(x) - jnp.log(self.features * nsites)
 
         return x
 
