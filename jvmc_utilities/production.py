@@ -83,14 +83,25 @@ def lindblad_time_evolution(
 
 class NetworkHyperparameters:
     """Dataclass for all network hyperparameters"""
-    network_type: str
-    param_dtype: str
-    depth: int
-    features: int
-    kernel_size: int
-    embeddingDimFac: int
-    attention_heads: int
-    symmetry: bool
+    def __init__(
+            self,
+            network_type: str,
+            param_dtype: str,
+            depth: int,
+            features: int,
+            kernel_size: int,
+            embeddingDimFac: int,
+            attention_heads: int,
+            symmetry: bool
+    ):
+        self.network_type = network_type
+        self.param_dtype = param_dtype
+        self.depth = depth
+        self.features = features
+        self.kernel_size = kernel_size
+        self.embeddingDimFac = embeddingDimFac
+        self.attention_heads = attention_heads
+        self.symmetry = symmetry
 
     def network_string(self) -> str:
         out_string = f"{self.network_type}_d{self.depth}_f{self.features}"
@@ -245,13 +256,23 @@ def get_network(
 
 class StepperParameters:
     """Dataclass for stepper parameters"""
-    stepper_type: str
-    dt: float
-    relative_tol: float
-    max_step: float
-    min_step: float
-    bulirsch_k_min: int
-    bulirsch_k_max: int
+    def __init__(
+            self,
+            stepper_type: str,
+            dt: float,
+            relative_tol: float,
+            max_step: float,
+            min_step: float,
+            bulirsch_k_min: int,
+            bulirsch_k_max: int
+    ):
+        self.stepper_type = stepper_type
+        self.dt = dt
+        self.relative_tol = relative_tol
+        self.max_step = max_step
+        self.min_step = min_step
+        self.bulirsch_k_min = bulirsch_k_min
+        self.bulirsch_k_max = bulirsch_k_max
 
 
 def get_stepper(
