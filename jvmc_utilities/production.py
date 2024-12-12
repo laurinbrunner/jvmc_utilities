@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 import h5py
 import jVMC
+import jVMC.mpi_wrapper as mpi
 from typing import Optional, Union, List, Dict, Callable, Tuple
 import jvmc_utilities
 from jvmc_utilities import nets as ju_nets
@@ -258,15 +259,18 @@ def get_stepper(
 ) -> Union[jvmc_utilities.stepper.BulirschStoer, jVMC.util.Euler, jVMC.util.AdaptiveHeun,
            jvmc_utilities.stepper.minAdaptiveHeun]:
     if step_parameters.stepper_type == "BulirschStoer":
-        stepper = jvmc_utilities.stepper.BulirschStoer(timeStep=step_parameters.dt, rtol=step_parameters.integrateTol,
+        stepper = jvmc_utilities.stepper.BulirschStoer(timeStep=step_parameters.dt,
+                                                       rtol=step_parameters.integrateTol,
                                                        maxStep=step_parameters.max_step,
                                                        kmin=step_parameters.bulirsch_k_min,
                                                        kmax=step_parameters.bulirsch_k_max)
     elif step_parameters.stepper_type == "Heun":
-        stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=step_parameters.dt, tol=step_parameters.relative_tol,
+        stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=step_parameters.dt,
+                                                 tol=step_parameters.relative_tol,
                                                  maxStep=step_parameters.max_step)
     elif step_parameters.stepper_type == "minHeun":
-        stepper = jvmc_utilities.stepper.minAdaptiveHeun(timeStep=step_parameters.dt, tol=step_parameters.relative_tol,
+        stepper = jvmc_utilities.stepper.minAdaptiveHeun(timeStep=step_parameters.dt,
+                                                         tol=step_parameters.relative_tol,
                                                          maxStep=step_parameters.max_step,
                                                          minStep=step_parameters.min_step)
     else:
@@ -285,7 +289,26 @@ def aqi_povm_object(dim: str, system_size: int) -> jVMC.operator.POVM:
 
 
 def argument_parser() -> argparse.ArgumentParser:
-    """Returns ArgumentParser with parsed parameters"""
+    """
+    Returns unparsed ArgumentParser object containing standard parameters.
+
+    Add further parameters using parser.add_argument("--argument", type=type, default=default_value).
+
+    ArgumentParser can be parsed using parser.parse_args().
+
+    The following arguments are already included:
+
+    Inital state parameters: 'eps_0', 'eps_1', 'eps_2'
+    Physical parameters: 'L', 'gamma', 'h_transverse', 'Tmax'
+    Network parameters: 'network', 'param_dtype', 'depth', 'features', 'attention_heads', 'kernel_size',
+                        'embeddingDimFac', 'symmetry'
+    Stepper parameters: 'stepper', 'dt', 'integrateTol', 'maxStep', 'minStep', 'bulirschkmin', 'bulirschkmax'
+    Sampler parameters: 'use_exact_sampler', 'numSamples', 'mu', 'numChains', 'thermalizationSweeps',
+                        'sweepStepsMultiplier'
+    jVMC parameters:  'seed', 'measSamples', 'measSteps', 'batchSize', 'ElocBatchSize', 'pinvTol', 'pinvCutoff',
+                      'snrTol', 'diagonalizeOnDevice', 'crossValidation'
+    further parameters: 'start_from_last'
+    """
     def str2bool(v):
         if isinstance(v, bool):
             return v
@@ -331,10 +354,16 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--bulirschkmin', type=int, default=2)
     parser.add_argument('--bulirschkmax', type=int, default=8)
 
-    # jVMC parameters
+    # Sampler parameters
     parser.add_argument('--use_exact_sampler', type=str2bool, default=False)
-    parser.add_argument('--seed', type=int, default=1234)
+    parser.add_argument('--mu', type=float, default=1.0)
+    parser.add_argument('--numChains', type=int, default=100)
+    parser.add_argument('--sweepStepsMultiplier', type=int, default=3)
+    parser.add_argument('--thermalizationSweeps', type=int, default=8)
     parser.add_argument('--numSamples', type=int, default=10000)
+
+    # jVMC parameters
+    parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--measSamples', type=int, default=10000)
     parser.add_argument('--measSteps', type=int, default=None)
     parser.add_argument('--batchSize', type=int, default=10000)
@@ -345,11 +374,94 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--diagonalizeOnDevice', type=str2bool, default=False)
     parser.add_argument('--crossValidation', type=str2bool, default=False)
 
-    parser.add_argument('--momentum', type=float, default=None)
+    # further parameters
     parser.add_argument('--start_from_last', type=bool, default=False)
-    parser.add_argument('--mu', type=float, default=1.0)
 
-    parser.add_argument('--direction', type=str, default="None", choices=["increase", "decrease", "size", "None"])
-    parser.add_argument('--previous_h', type=float, default=-1.0)
 
-    args = parser.parse_args()
+class TDVP_Norm:
+    """
+    Helper class to implement normalisation function for TDVP equation.
+    """
+    def __init__(self, tdvpEquation: jVMC.util.TDVP):
+        self.tdvpEquation = tdvpEquation
+
+    def norm_function(self,  v: jnp.ndarray) -> float:
+        return jnp.real(jnp.conj(jnp.transpose(v)).dot(self.tdvpEquation.S_dot(v)))
+
+
+class H5PY_wrapper:
+    """
+    Wrapper class around a h5py file to write data and metadata specific to jvmc_utility tasks.
+    """
+    def __init__(self, file_path: str):
+        self.file_path = file_path
+
+        self._has_metadata = None
+
+        if mpi.rank == 0:
+            with h5py.File(self.file_path, mode="a") as f:
+                self._has_metadata = 0 == len(f.attrs.keys())
+                try:
+                    f.create_group("network_checkpoints/")
+                    f.create_group("sampler_checkpoints/")
+                    f.create_group("observables/")
+                except ValueError:
+                    pass
+        self._has_metadata = mpi.comm.bcast(self._has_metadata, root=0)
+
+    def has_metadata(self) -> bool:
+        return self._has_metadata
+
+    def write_metadata(self, **kwargs):
+        if mpi.rank == 0:
+            with h5py.File(self.file_path, "a") as f:
+                for key, value in kwargs.items():
+                    f.attrs[key] = value
+
+    def update_dataset(self, file, group, value):
+        newLen = len(file[group]) + 1
+        file[group].resize(newLen, axis=0)
+        file[group][-1] = value
+
+    def write_observables(self, time, **kwargs):
+        if mpi.rank == 0:
+            with h5py.File(self.file_path, mode="a") as f:
+                if "observables/time" not in f:
+                    f.create_dataset("observables/time", (0,), maxshape=(None,), dtype="f8", chunks=True)
+
+                self.update_dataset(f, "observable/time", time)
+
+                for key, value in kwargs.items():
+                    if "observables/" + key not in f:
+                        f.create_dataset("observables/" + key, (0,), maxshape=(None,), dtype="f8", chunks=True)
+
+                    self.update_dataset(f, "observables/" + key, value)
+
+    def write_network_checkpoint(self, time, parameters):
+        if mpi.rank == 0:
+            with h5py.File(self.file_path, mode="a") as f:
+                if "network_checkpoints/checkpoints" not in f:
+                    f.create_dataset("network_checkpoints/checkpoints", shape=(0,) + parameters.shape, dtype="f8",
+                                     chunks=True, maxshape=(None,) + parameters.shape)
+                if "network_checkpoints/times" not in f:
+                    f.create_dataset("network_checkpoints/times", shape=(0,), dtype="f8", chunks=True, maxshape=(None,))
+
+                self.update_dataset(f, "network_checkpoints/time", time)
+
+                self.update_dataset(f, "network_checkpoints/checkpoints", parameters)
+
+    def write_sampler_checkpoint(self, time, state):
+        if mpi.rank == 0:
+            with h5py.File(self.file_path, mode="a") as f:
+                if "sampler_checkpoint/time" not in f:
+                    f.create_dataset("sampler_checkpoint/time", shape=(0,), dtype="f8", maxshape=(None,), chunks=True)
+                if "sampler_checkpoint/states" not in f:
+                    f.create_dataset("sampler_checkpoint/states", dtype="i1", chunks=True,
+                                     shape=(0,) + state.shape, maxshape=(None,) + state.shape)
+
+                self.update_dataset(f, "sampler_checkpoint/time", time)
+                self.update_dataset(f, "sampler_checkpoint/states", state)
+
+    def print(self, message):
+        if mpi.rank == 0:
+            print(message, flush=True)
