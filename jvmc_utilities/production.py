@@ -418,27 +418,25 @@ class H5PY_wrapper:
     def __init__(self, file_path: str):
         self.file_path = file_path
 
-        self._has_metadata = None
+        self.OBSERVABLES = "observables/"
+        self.NETWORK = "network_checkpoints/"
+        self.SAMPLER = "sampler_checkpoints/"
 
         if mpi.rank == 0:
             with h5py.File(self.file_path, mode="a") as f:
-                self._has_metadata = 0 != len(f.attrs.keys())
                 try:
-                    f.create_group("network_checkpoints/")
-                    f.create_group("sampler_checkpoints/")
-                    f.create_group("observables/")
+                    f.create_group(self.NETWORK)
+                    f.create_group(self.SAMPLER)
+                    f.create_group(self.OBSERVABLES)
                 except ValueError:
                     pass
-        self._has_metadata = mpi.comm.bcast(self._has_metadata, root=0)
-
-    def has_metadata(self) -> bool:
-        return self._has_metadata
 
     def write_metadata(self, **kwargs):
         if mpi.rank == 0:
             with h5py.File(self.file_path, "a") as f:
                 for key, value in kwargs.items():
-                    f.attrs[key] = value
+                    if key not in f.attrs:
+                        f.attrs[key] = value
 
     def update_dataset(self, file, group, value):
         newLen = len(file[group]) + 1
@@ -448,41 +446,41 @@ class H5PY_wrapper:
     def write_observables(self, time, **kwargs):
         if mpi.rank == 0:
             with h5py.File(self.file_path, mode="a") as f:
-                if "observables/time" not in f:
-                    f.create_dataset("observables/time", (0,), maxshape=(None,), dtype="f8", chunks=True)
+                if self.OBSERVABLES + "times" not in f:
+                    f.create_dataset(self.OBSERVABLES + "times", (0,), maxshape=(None,), dtype="f8", chunks=True)
 
-                self.update_dataset(f, "observable/time", time)
+                self.update_dataset(f, self.OBSERVABLES + "times", time)
 
                 for key, value in kwargs.items():
-                    if "observables/" + key not in f:
-                        f.create_dataset("observables/" + key, (0,), maxshape=(None,), dtype="f8", chunks=True)
+                    if self.OBSERVABLES + key not in f:
+                        f.create_dataset(self.OBSERVABLES + key, (0,), maxshape=(None,), dtype="f8", chunks=True)
 
-                    self.update_dataset(f, "observables/" + key, value)
+                    self.update_dataset(f, self.OBSERVABLES + key, value)
 
     def write_network_checkpoint(self, time, parameters):
         if mpi.rank == 0:
             with h5py.File(self.file_path, mode="a") as f:
-                if "network_checkpoints/checkpoints" not in f:
-                    f.create_dataset("network_checkpoints/checkpoints", shape=(0,) + parameters.shape, dtype="f8",
+                if self.NETWORK + "checkpoints" not in f:
+                    f.create_dataset(self.NETWORK + "checkpoints", shape=(0,) + parameters.shape, dtype="f8",
                                      chunks=True, maxshape=(None,) + parameters.shape)
-                if "network_checkpoints/times" not in f:
-                    f.create_dataset("network_checkpoints/times", shape=(0,), dtype="f8", chunks=True, maxshape=(None,))
+                if self.NETWORK + "times" not in f:
+                    f.create_dataset(self.NETWORK + "times", shape=(0,), dtype="f8", chunks=True, maxshape=(None,))
 
-                self.update_dataset(f, "network_checkpoints/time", time)
+                self.update_dataset(f, self.NETWORK + "times", time)
 
-                self.update_dataset(f, "network_checkpoints/checkpoints", parameters)
+                self.update_dataset(f, self.NETWORK + "checkpoints", parameters)
 
     def write_sampler_checkpoint(self, time, state):
         if mpi.rank == 0:
             with h5py.File(self.file_path, mode="a") as f:
-                if "sampler_checkpoint/time" not in f:
-                    f.create_dataset("sampler_checkpoint/time", shape=(0,), dtype="f8", maxshape=(None,), chunks=True)
-                if "sampler_checkpoint/states" not in f:
-                    f.create_dataset("sampler_checkpoint/states", dtype="i1", chunks=True,
+                if self.SAMPLER + "times" not in f:
+                    f.create_dataset(self.SAMPLER + "times", shape=(0,), dtype="f8", maxshape=(None,), chunks=True)
+                if self.SAMPLER + "states" not in f:
+                    f.create_dataset(self.SAMPLER + "states", dtype="i1", chunks=True,
                                      shape=(0,) + state.shape, maxshape=(None,) + state.shape)
 
-                self.update_dataset(f, "sampler_checkpoint/time", time)
-                self.update_dataset(f, "sampler_checkpoint/states", state)
+                self.update_dataset(f, self.SAMPLER + "times", time)
+                self.update_dataset(f, self.SAMPLER + "states", state)
 
     def print(self, message):
         if mpi.rank == 0:
