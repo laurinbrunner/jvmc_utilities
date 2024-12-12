@@ -365,8 +365,6 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--kernel_size', type=int, default=1)
     parser.add_argument('--embeddingDimFac', type=int, default=1)
     parser.add_argument('--symmetry', type=str2bool, default=False)
-    parser.add_argument('--bulirschkmin', type=int, default=2)
-    parser.add_argument('--bulirschkmax', type=int, default=2)
 
     # Stepper parameters
     parser.add_argument('--stepper', type=str, default="Heun", choices=["Euler", "Heun", "BulirschStoer"])
