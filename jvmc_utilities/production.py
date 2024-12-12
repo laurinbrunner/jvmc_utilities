@@ -376,6 +376,7 @@ def argument_parser() -> argparse.ArgumentParser:
 
     # further parameters
     parser.add_argument('--start_from_last', type=bool, default=False)
+    return parser
 
 
 class TDVP_Norm:
