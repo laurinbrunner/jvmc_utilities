@@ -91,9 +91,24 @@ class NetworkHyperparameters:
     attention_heads: int
     symmetry: bool
 
+    def network_string(self) -> str:
+        out_string = f"{self.network_type}_d{self.depth}_f{self.features}"
+        if self.network_type in ["CNN", "GatedCNN", "CNNResidual", "CNNEmbedded", "CNNEmbeddedResidual", "CNNAttention",
+                                 "CNNAttentionResidual", "CNN_mcmc", "ResNet_mcmc"]:
+            out_string += f"_ks{self.kernel_size}"
+        if self.network_type in ["CNNEmbedded", "CNNEmbeddedResidual"]:
+            out_string += f"_embDim{self.embeddingDimFac}"
+        if self.network_type in ["CNNAttention", "CNNAttentionResidual"]:
+            out_string += f"_attheads{self.attention_heads}"
+        if self.symmetry:
+            out_string += "_symm"
+
+        out_string += f"_dtype{self.param_dtype}"
+
+        return out_string
+
 
 def get_network(
-        network_type: str,
         hyperparameters: NetworkHyperparameters,
         system_size: int,
         logProbFactor: float,
