@@ -422,7 +422,7 @@ class H5PY_wrapper:
 
         if mpi.rank == 0:
             with h5py.File(self.file_path, mode="a") as f:
-                self._has_metadata = 0 == len(f.attrs.keys())
+                self._has_metadata = 0 != len(f.attrs.keys())
                 try:
                     f.create_group("network_checkpoints/")
                     f.create_group("sampler_checkpoints/")
