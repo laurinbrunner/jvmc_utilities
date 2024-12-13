@@ -356,7 +356,7 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--Tmax', type=float, default=5.0)
 
     # Network parameters
-    parser.add_argument('--network', type=str, default='DeepNADE',
+    parser.add_argument('--network', type=str, default='CNN_mcmc',
                         choices=["DeepNADE", "GatedCNN", "CNN", "RNN", "LSTM", "AFFN", "CNNResidual", "CNNAttention",
                                  "CNNAttentionResidual", "CNN_mcmc", "CNNEmbedded", "CNNEmbeddedResidual",
                                  "ResNet_mcmc"])
