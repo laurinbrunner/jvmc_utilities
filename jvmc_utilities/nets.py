@@ -858,6 +858,93 @@ class GatedCNNCell(nn.Module):
         return x
 
 
+class MCMC_ResNet(nn.Module):
+    """
+    Residual convolutional block neural network for POVM in the MCMC framework.
+
+    :param prefeatures: Number of features for first convolution to go from computational sites to physical sites
+    :param features: Number of features for main convolutions
+    :param depth: Number of blocks
+    :param bias: Whether to use biases
+    :param inputDim: Local dimension of input. 4 for POVM
+    :param actFun: Activation function to be used between convolutions. Default is nn.gelu
+    :param kernel_size: Size of convolutional filter
+    :param param_dtype: Data type for parameters and network output
+    """
+    prefeatures: int = 16
+    features: int = 8
+    kernel_size: Tuple[int] = (4,)
+    depth: int = 1
+    bias: bool = True
+    inputDim: int = 4
+    actFun: callable = nn.gelu
+    param_dtype: type = jnp.float32
+
+    @nn.compact
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+        nsites = x.size
+
+        x_oh = nn.one_hot(x, self.inputDim)
+
+        x = nn.Conv(
+            features=self.prefeatures,
+            kernel_size=(2,),
+            padding='CIRCULAR',
+            strides=2,
+            use_bias=self.bias,
+            param_dtype=self.param_dtype,
+            kernel_init=jax.nn.initializers.lecun_normal(),
+            bias_init=jax.nn.initializers.zeros,
+            name="Pre_Conv"
+        )(x_oh)
+
+        x = self.actFun(x)
+
+        for nblock in range(self.depth):
+
+            residual = x
+            x /= np.sqrt(nblock+1, dtype=self.param_dtype)
+
+            if nblock == 0:
+                x /= np.sqrt(2, dtype=self.param_dtype)
+            else:
+                x = self.actFun(x)
+
+            x = nn.Conv(
+                features=self.features,
+                kernel_size=self.kernel_size,
+                padding="CIRCULAR",
+                use_bias=self.bias,
+                param_dtype=self.param_dtype,
+                dtype=self.param_dtype,
+                kernel_init=jax.nn.initializers.he_normal(),
+                bias_init=jax.nn.initializers.zeros,
+                name=f"block {nblock} first conv"
+                )(x)
+
+            x = self.actFun(x)
+
+            x = nn.Conv(
+                features=self.features,
+                kernel_size=self.kernel_size,
+                padding="CIRCULAR",
+                use_bias=self.bias and (nblock != self.depth-1),
+                param_dtype=self.param_dtype,
+                dtype=self.param_dtype,
+                kernel_init=jax.nn.initializers.he_normal(),
+                bias_init=jax.nn.initializers.zeros,
+                name=f"block {nblock} second conv"
+                )(x)
+
+            x += residual.mean(axis=-1).reshape(-1, 1)
+
+        x /= np.sqrt(nblock+1, dtype=self.param_dtype)
+
+        x = jax.scipy.special.logsumexp(x) - jnp.log(self.features * nsites)
+
+        return x
+
+
 def propose_POVM_outcome(key, s, info):
     key, subkey = jax.random.split(key)
     idx = jax.random.randint(subkey, (1,), 0, s.size)[0]

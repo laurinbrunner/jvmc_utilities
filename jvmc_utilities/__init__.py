@@ -5,6 +5,7 @@ from . import nets
 from . import plotting
 from . import stepper
 from . import symmetry
+from . import production
 
 try:
     from ._version import __version__
