@@ -286,6 +286,8 @@ def get_stepper(
                                                        kmin=step_parameters.bulirsch_k_min,
                                                        kmax=step_parameters.bulirsch_k_max)
     elif step_parameters.stepper_type == "Heun":
+        stepper = jVMC.util.stepper.Heun(timeStep=step_parameters.dt)
+    elif step_parameters.stepper_type == "AdaptiveHeun":
         stepper = jVMC.util.stepper.AdaptiveHeun(timeStep=step_parameters.dt,
                                                  tol=step_parameters.relative_tol,
                                                  maxStep=step_parameters.max_step)
@@ -367,7 +369,8 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--symmetry', type=str2bool, default=False)
 
     # Stepper parameters
-    parser.add_argument('--stepper', type=str, default="Heun", choices=["Euler", "Heun", "BulirschStoer"])
+    parser.add_argument('--stepper', type=str, default="Euler", choices=["Euler", "Heun", "BulirschStoer",
+                                                                        "AdaptiveHeun"])
     parser.add_argument('--integrateTol', type=float, default=1e-7)
     parser.add_argument('--dt', type=float, default=1e-3)
     parser.add_argument('--maxStep', type=float, default=1)
