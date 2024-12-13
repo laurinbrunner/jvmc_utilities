@@ -439,7 +439,7 @@ class H5PY_wrapper:
             with h5py.File(self.file_path, "a") as f:
                 for key, value in kwargs.items():
                     if key not in f.attrs:
-                        f.attrs[key] = value
+                        f.attrs[key] = str(value)
 
     def update_dataset(self, file, group, value):
         newLen = len(file[group]) + 1
