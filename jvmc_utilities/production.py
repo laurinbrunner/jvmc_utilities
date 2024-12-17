@@ -92,7 +92,8 @@ class NetworkHyperparameters:
             kernel_size: int,
             embeddingDimFac: int,
             attention_heads: int,
-            symmetry: bool
+            symmetry: bool,
+            prefeatures: int
     ):
         self.network_type = network_type
         self.param_dtype = param_dtype
@@ -102,6 +103,7 @@ class NetworkHyperparameters:
         self.embeddingDimFac = embeddingDimFac
         self.attention_heads = attention_heads
         self.symmetry = symmetry
+        self.prefeatures = prefeatures
 
     def network_string(self) -> str:
         out_string = f"{self.network_type}_d{self.depth}_f{self.features}"
@@ -112,6 +114,8 @@ class NetworkHyperparameters:
             out_string += f"_embDim{self.embeddingDimFac}"
         if self.network_type in ["CNNAttention", "CNNAttentionResidual"]:
             out_string += f"_attheads{self.attention_heads}"
+        if self.network_type in ["CNN_mcmc", "ResNet_mcmc"]:
+            out_string += f"_pref{self.prefeatures}"
         if self.symmetry:
             out_string += "_symm"
 
@@ -241,11 +245,13 @@ def get_network(
         net = ju_nets.MCMC_CNN(features=hyperparameters.features,
                                depth=hyperparameters.depth,
                                kernel_size=(hyperparameters.kernel_size,),
+                               prefeatures=hyperparameters.prefeatures,
                                param_dtype=dtype)
     elif hyperparameters.network_type == "ResNet_mcmc":
         net = ju_nets.MCMC_ResNet(features=hyperparameters.features,
                                   depth=hyperparameters.depth,
                                   kernel_size=(hyperparameters.kernel_size, ),
+                                  prefeatures=hyperparameters.prefeatures,
                                   param_dtype=dtype)
     else:
         raise ValueError("Unknown network type. Valid types are 'GatedCNN', 'CNN', 'DeepNADE', 'AFFN', 'RNN', 'LSTM', "
@@ -366,6 +372,7 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--attention_heads', type=int, default=1)
     parser.add_argument('--kernel_size', type=int, default=1)
     parser.add_argument('--embeddingDimFac', type=int, default=1)
+    parser.add_argument('--prefeatures', type=int, default=16)
     parser.add_argument('--symmetry', type=str2bool, default=False)
 
     # Stepper parameters
