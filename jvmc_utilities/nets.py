@@ -802,7 +802,7 @@ class MCMC_CNN(nn.Module):
 
         for j in range(self.depth):
             x_oh = nn.Conv(features=self.features, kernel_size=self.kernel_size, padding='CIRCULAR',
-                           use_bias=self.use_bias, name=f"main Conv {j}")(x_oh)
+                           use_bias=self.use_bias, param_dtype=self.param_dtype, name=f"main Conv {j}")(x_oh)
             x_oh = self.actFun(x_oh)
 
         return jnp.sum(x_oh)
