@@ -406,7 +406,7 @@ def argument_parser() -> argparse.ArgumentParser:
     parser.add_argument('--crossValidation', type=str2bool, default=False)
 
     # further parameters
-    parser.add_argument('--start_from_last', type=bool, default=False)
+    parser.add_argument('--start_from_last', type=str2bool, default=False)
     return parser
 
 
